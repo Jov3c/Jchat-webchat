@@ -148,7 +148,29 @@ const PINNED_STORAGE_KEY = 'jchat_pinned_friends';
 const DM_ORDER_STORAGE_KEY = 'jchat_dm_order';
 const STALE_CONTACTS_KEY = 'jchat_stale_contacts';
 const DEFAULT_AVATAR = 'images/default.png';
-function getAvatarUrl(avatar) { return (avatar && avatar !== 'default.png') ? avatar : DEFAULT_AVATAR; }
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+}
+function escapeAttribute(value) { return escapeHtml(value); }
+function safeMediaUrl(value) {
+    if (typeof value !== 'string') return '';
+    const candidate = value.trim();
+    if (!candidate || candidate.includes('..') || /[\u0000-\u001f\u007f]/.test(candidate)) return '';
+    if (/^(?:uploads|images)\/[a-zA-Z0-9_./-]+$/.test(candidate)) return candidate;
+    try {
+        const url = new URL(candidate);
+        return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+    } catch (_) {
+        return '';
+    }
+}
+function getAvatarUrl(avatar) { return safeMediaUrl(avatar) || DEFAULT_AVATAR; }
+function safeMessageId(value) {
+    const raw = String(value ?? '').trim();
+    if (!/^\d+$/.test(raw)) return '';
+    const parsed = Number(raw);
+    return Number.isSafeInteger(parsed) ? String(parsed) : '';
+}
 
 function getPinnedFriendIds() {
     try {
@@ -1546,18 +1568,18 @@ function renderFriendsList() {
         sorted.forEach(friend => {
             const item = document.createElement('div');
             item.className = 'friend-item';
-            item.dataset.friendId = friend.id;
+            item.dataset.friendId = safeMessageId(friend.id);
             const unread = (dmUnreadCountByFriendId[String(friend.id)] || 0);
             const unreadHtml = unread > 0 ? '<span class="dm-unread-badge">' + (unread > 99 ? '99+' : unread) + '</span>' : '';
             const pinHtml = isPinnedFriend(friend.id) ? '<span class="friend-pin-icon" title="已置顶" aria-label="已置顶">' + jchatIcon('check') + '</span>' : '';
-            item.innerHTML = '<img class="friend-avatar" src="' + getAvatarUrl(friend.avatar) + '" alt="avatar"><span class="friend-name">' + (friend.nickname || friend.username) + '</span>' + pinHtml + unreadHtml;
+            item.innerHTML = '<img class="friend-avatar" src="' + escapeAttribute(getAvatarUrl(friend.avatar)) + '" alt="avatar"><span class="friend-name">' + escapeHtml(friend.nickname || friend.username) + '</span>' + pinHtml + unreadHtml;
             t.list.appendChild(item);
         });
         stale.forEach(function (s) {
             const item = document.createElement('div');
             item.className = 'friend-item friend-item-stale';
-            item.dataset.staleId = s.id;
-            item.innerHTML = '<img class="friend-avatar" src="' + getAvatarUrl(s.avatar) + '" alt="avatar"><span class="friend-name">' + (s.nickname || s.username) + '</span><span class="friend-stale-tag">已解除</span><button type="button" class="btn-readd-friend" data-stale-id="' + s.id + '">重新添加</button>';
+            item.dataset.staleId = safeMessageId(s.id);
+            item.innerHTML = '<img class="friend-avatar" src="' + escapeAttribute(getAvatarUrl(s.avatar)) + '" alt="avatar"><span class="friend-name">' + escapeHtml(s.nickname || s.username) + '</span><span class="friend-stale-tag">已解除</span><button type="button" class="btn-readd-friend" data-stale-id="' + safeMessageId(s.id) + '">重新添加</button>';
             t.list.appendChild(item);
         });
     });
@@ -1621,10 +1643,10 @@ function renderFriendRequests() {
     incomingRequestsCache.forEach(req => {
         const row = document.createElement('div');
         row.className = 'friend-item';
-        row.dataset.requestId = req.id;
+        row.dataset.requestId = safeMessageId(req.id);
         var name = (req.from_user && (req.from_user.nickname || req.from_user.username)) ? String(req.from_user.nickname || req.from_user.username) : '该账户已注销';
         var msg = (req.message != null && String(req.message).trim()) ? String(req.message).trim() : '';
-        row.innerHTML = '<img class="friend-avatar" src="' + getAvatarUrl(req.from_user && req.from_user.avatar ? req.from_user.avatar : '') + '" alt="avatar"><div class="friend-item-body"><span class="friend-name"></span></div><div class="friend-item-actions"><button class="btn-secondary req-reject" type="button" style="padding:6px 10px;">拒绝</button><button class="btn-primary req-accept" type="button" style="padding:6px 10px;">同意</button></div>';
+        row.innerHTML = '<img class="friend-avatar" src="' + escapeAttribute(getAvatarUrl(req.from_user && req.from_user.avatar ? req.from_user.avatar : '')) + '" alt="avatar"><div class="friend-item-body"><span class="friend-name"></span></div><div class="friend-item-actions"><button class="btn-secondary req-reject" type="button" style="padding:6px 10px;">拒绝</button><button class="btn-primary req-accept" type="button" style="padding:6px 10px;">同意</button></div>';
         var bodyEl = row.querySelector('.friend-item-body');
         var nameEl = row.querySelector('.friend-name');
         if (nameEl) nameEl.textContent = name;
@@ -1982,7 +2004,9 @@ function addMessageToDOM(message) {
 
     const messageElement = document.createElement('div');
     messageElement.className = `message ${isCurrentUser ? 'sent' : 'received'}`;
-    messageElement.dataset.messageId = message.id;
+    const messageId = safeMessageId(message.id);
+    const messageUserId = safeMessageId(message.user_id);
+    messageElement.dataset.messageId = messageId;
 
     const now = new Date();
     const messageTime = new Date(message.created_at);
@@ -1998,18 +2022,20 @@ function addMessageToDOM(message) {
     });
 
     const messageAvatar = getAvatarUrl(message.avatar);
+    const messageName = escapeHtml(message.nickname || message.username || message.user?.nickname || message.user?.username || '用户');
     let messageContent = `
         <div class="avatar-container">
-            <img src="${messageAvatar.includes('http') ? messageAvatar : messageAvatar}" alt="Avatar" class="avatar" onclick="openUserProfile(${message.user_id})">
+            <img src="${escapeAttribute(messageAvatar)}" alt="Avatar" class="avatar"${messageUserId ? ` onclick="openUserProfile(${messageUserId})"` : ''}>
         </div>
         <div class="message-content">
             <div class="message-header">
-                <span class="message-username">${message.nickname || message.username || message.user?.nickname || message.user?.username || '用户'}</span>
+                <span class="message-username">${messageName}</span>
             </div>
     `;
 
     if (message.reply_info) {
         const repliedContent = message.reply_info.content || '图片消息';
+        const repliedName = escapeHtml(message.reply_info.nickname || message.reply_info.username || '用户');
         messageContent += `<div class="message-reply" style="
             background-color: rgba(0, 113, 227, 0.05);
             border-left: 3px solid #0071e3;
@@ -2018,31 +2044,33 @@ function addMessageToDOM(message) {
             margin-bottom: 6px;
             font-size: 13px;
         ">
-            <span style="font-weight: bold; color: #0071e3;">@${message.reply_info.nickname || message.reply_info.username}</span>: ${repliedContent.length > 30 ? repliedContent.substring(0, 30) + '...' : repliedContent}
+            <span style="font-weight: bold; color: #0071e3;">@${repliedName}</span>: ${escapeHtml(repliedContent.length > 30 ? repliedContent.substring(0, 30) + '...' : repliedContent)}
         </div>`;
     }
 
     const actionButtons = [];
 
     if (message.content) {
-        messageContent += `<div class="message-text">${message.content}</div>`;
+        messageContent += `<div class="message-text">${escapeHtml(message.content)}</div>`;
     }
 
-    if (message.image && !message.is_recalled) {
-        messageContent += `<img src="${message.image}" alt="Chat image" class="message-image" onclick="viewImage(this)">`;
-        actionButtons.push(`<button class="sticker-collect-btn" data-sticker-src="${message.image}" aria-label="收藏表情包" title="收藏表情包">${jchatIcon('bookmark')}</button>`);
+    const imageUrl = safeMediaUrl(message.image);
+    if (imageUrl && !message.is_recalled) {
+        messageContent += `<img src="${escapeAttribute(imageUrl)}" alt="Chat image" class="message-image" onclick="viewImage(this)">`;
+        actionButtons.push(`<button class="sticker-collect-btn" data-sticker-src="${escapeAttribute(imageUrl)}" aria-label="收藏表情包" title="收藏表情包">${jchatIcon('bookmark')}</button>`);
     }
 
-    if (message.voice && !message.is_recalled) {
-        const audioType = message.voice.endsWith('.ogg') ? 'audio/ogg' : 'audio/webm;codecs=opus';
+    const voiceUrl = safeMediaUrl(message.voice);
+    if (voiceUrl && !message.is_recalled) {
+        const audioType = voiceUrl.endsWith('.ogg') ? 'audio/ogg' : 'audio/webm;codecs=opus';
         messageContent += `<div class="message-voice bubble">
-            <div class="custom-audio-player" data-message-id="${message.id}">
-                <audio id="audio-${message.id}" class="voice-player" preload="metadata">
-                    <source src="${message.voice}" type="${audioType}">
+            <div class="custom-audio-player" data-message-id="${messageId}">
+                <audio id="audio-${messageId}" class="voice-player" preload="metadata">
+                    <source src="${escapeAttribute(voiceUrl)}" type="${audioType}">
                     您的浏览器不支持音频播放
                 </audio>
                 <div class="audio-controls">
-                    <button class="play-btn" data-audio-id="${message.id}" aria-label="播放语音" title="播放语音">
+                    <button class="play-btn" data-audio-id="${messageId}" aria-label="播放语音" title="播放语音">
                         <span class="play-icon">${jchatIcon('play')}</span>
                         <span class="pause-icon">${jchatIcon('pause')}</span>
                     </button>
@@ -2054,7 +2082,7 @@ function addMessageToDOM(message) {
         </div>`;
     }
 
-    actionButtons.push(`<button class="reply-btn" data-message-id="${message.id}" style="
+    actionButtons.push(`<button class="reply-btn" data-message-id="${messageId}" style="
         background: none;
         border: none;
         color: #0071e3;
@@ -2068,7 +2096,7 @@ function addMessageToDOM(message) {
     " aria-label="回复" title="回复">${jchatIcon('edit')}</button>`);
 
 if (isCurrentUser && timeDiff <= 2 && !message.is_recalled) {
-            actionButtons.push(`<button class="recall-btn" data-message-id="${message.id}" data-channel="${message.channel}" style="
+            actionButtons.push(`<button class="recall-btn" data-message-id="${messageId}" data-channel="${escapeAttribute(message.channel)}" style="
             background: none;
             border: none;
             color: #ff3b30;
@@ -2606,7 +2634,13 @@ async function openUserProfile(userId) {
 
             const profileUsername = document.getElementById('profileUsername');
             if (user.username === "jiafee") {
-                profileUsername.innerHTML = `${user.nickname || user.username} <img src="images/blue.png" class="user-badge">`;
+                profileUsername.replaceChildren();
+                profileUsername.append(document.createTextNode(user.nickname || user.username || '用户'));
+                const badge = document.createElement('img');
+                badge.src = 'images/blue.png';
+                badge.className = 'user-badge';
+                badge.alt = '';
+                profileUsername.append(' ', badge);
             } else {
                 profileUsername.textContent = user.nickname || user.username;
             }
@@ -3219,8 +3253,8 @@ async function loadBlacklistList() {
         users.forEach(function (u) {
             var row = document.createElement('div');
             row.className = 'friend-item blacklist-item';
-            row.dataset.blockedId = u.id;
-            row.innerHTML = '<img class="friend-avatar" src="' + getAvatarUrl(u.avatar) + '" alt="avatar"><span class="friend-name">' + (u.nickname || u.username) + '</span><button type="button" class="btn-unblock btn-secondary">解除拉黑</button>';
+            row.dataset.blockedId = safeMessageId(u.id);
+            row.innerHTML = '<img class="friend-avatar" src="' + escapeAttribute(getAvatarUrl(u.avatar)) + '" alt="avatar"><span class="friend-name">' + escapeHtml(u.nickname || u.username) + '</span><button type="button" class="btn-unblock btn-secondary">解除拉黑</button>';
             blacklistList.appendChild(row);
         });
         blacklistList.querySelectorAll('.btn-unblock').forEach(function (btn) {
@@ -4213,27 +4247,33 @@ function addDmMessageToDOM(message) {
     }
     const messageElement = document.createElement('div');
     messageElement.className = 'message ' + (isCurrentUser ? 'sent' : 'received');
-    messageElement.dataset.messageId = mapped.id;
+    const mappedId = safeMessageId(mapped.id);
+    const mappedUserId = safeMessageId(mapped.user_id);
+    messageElement.dataset.messageId = mappedId;
     messageElement.dataset.messageType = 'dm';
     var mappedTime = new Date(mapped.created_at);
     if (!Number.isNaN(mappedTime.getTime())) messageElement.dataset.messageTime = mappedTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     const messageAvatar = getAvatarUrl(mapped.avatar);
-    var html = '<div class="avatar-container"><img src="' + messageAvatar + '" alt="Avatar" class="avatar" onclick="openUserProfile(' + mapped.user_id + ')"></div><div class="message-content"><div class="message-header"><span class="message-username">' + (mapped.nickname || mapped.username || '用户') + '</span></div>';
+    const mappedName = escapeHtml(mapped.nickname || mapped.username || '用户');
+    var profileClick = mappedUserId ? ' onclick="openUserProfile(' + mappedUserId + ')"' : '';
+    var html = '<div class="avatar-container"><img src="' + escapeAttribute(messageAvatar) + '" alt="Avatar" class="avatar"' + profileClick + '></div><div class="message-content"><div class="message-header"><span class="message-username">' + mappedName + '</span></div>';
     if (mapped.reply_info) {
         var rc = (mapped.reply_info.content || '图片消息').length > 30 ? (mapped.reply_info.content || '').substring(0, 30) + '...' : (mapped.reply_info.content || '图片消息');
-        html += '<div class="message-reply" style="background-color: rgba(0, 113, 227, 0.05); border-left: 3px solid #0071e3; padding: 6px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px;"><span style="font-weight: bold; color: #0071e3;">@' + (mapped.reply_info.nickname || mapped.reply_info.username) + '</span>: ' + rc + '</div>';
+        html += '<div class="message-reply" style="background-color: rgba(0, 113, 227, 0.05); border-left: 3px solid #0071e3; padding: 6px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px;"><span style="font-weight: bold; color: #0071e3;">@' + escapeHtml(mapped.reply_info.nickname || mapped.reply_info.username || '用户') + '</span>: ' + escapeHtml(rc) + '</div>';
     }
-    if (mapped.content) html += '<div class="message-text">' + mapped.content + '</div>';
-    if (mapped.image && !mapped.is_recalled) html += '<img src="' + mapped.image + '" alt="Chat image" class="message-image" onclick="viewImage(this)"><button class="sticker-collect-btn" data-sticker-src="' + mapped.image + '" aria-label="收藏表情包" title="收藏表情包">' + jchatIcon('bookmark') + '</button>';
-    if (mapped.voice && !mapped.is_recalled) {
-        var audioType = mapped.voice.endsWith('.ogg') ? 'audio/ogg' : 'audio/webm;codecs=opus';
-        html += '<div class="message-voice bubble"><div class="custom-audio-player" data-message-id="' + mapped.id + '"><audio id="audio-' + mapped.id + '" class="voice-player" preload="metadata"><source src="' + mapped.voice + '" type="' + audioType + '"></audio><div class="audio-controls"><button class="play-btn" data-audio-id="' + mapped.id + '" aria-label="播放语音" title="播放语音"><span class="play-icon">' + jchatIcon('play') + '</span><span class="pause-icon">' + jchatIcon('pause') + '</span></button><div class="time-display"><span class="current-time">0:00</span></div></div></div></div>';
+    if (mapped.content) html += '<div class="message-text">' + escapeHtml(mapped.content) + '</div>';
+    var mappedImageUrl = safeMediaUrl(mapped.image);
+    if (mappedImageUrl && !mapped.is_recalled) html += '<img src="' + escapeAttribute(mappedImageUrl) + '" alt="Chat image" class="message-image" onclick="viewImage(this)"><button class="sticker-collect-btn" data-sticker-src="' + escapeAttribute(mappedImageUrl) + '" aria-label="收藏表情包" title="收藏表情包">' + jchatIcon('bookmark') + '</button>';
+    var mappedVoiceUrl = safeMediaUrl(mapped.voice);
+    if (mappedVoiceUrl && !mapped.is_recalled) {
+        var audioType = mappedVoiceUrl.endsWith('.ogg') ? 'audio/ogg' : 'audio/webm;codecs=opus';
+        html += '<div class="message-voice bubble"><div class="custom-audio-player" data-message-id="' + mappedId + '"><audio id="audio-' + mappedId + '" class="voice-player" preload="metadata"><source src="' + escapeAttribute(mappedVoiceUrl) + '" type="' + audioType + '"></audio><div class="audio-controls"><button class="play-btn" data-audio-id="' + mappedId + '" aria-label="播放语音" title="播放语音"><span class="play-icon">' + jchatIcon('play') + '</span><span class="pause-icon">' + jchatIcon('pause') + '</span></button><div class="time-display"><span class="current-time">0:00</span></div></div></div></div>';
     }
     var now = new Date(), msgTime = new Date(mapped.created_at), timeDiff = (now - msgTime) / (1000 * 60);
     html += '<div class="message-actions">';
-    html += '<button class="reply-btn" data-message-id="' + mapped.id + '" aria-label="回复" title="回复" style="background: none; border: none; color: #0071e3; font-size: 14px; cursor: pointer; margin-top: 5px; padding: 2px 6px; border-radius: 10px; transition: all 0.3s ease; opacity: 0.7;">' + jchatIcon('edit') + '</button>';
+    html += '<button class="reply-btn" data-message-id="' + mappedId + '" aria-label="回复" title="回复" style="background: none; border: none; color: #0071e3; font-size: 14px; cursor: pointer; margin-top: 5px; padding: 2px 6px; border-radius: 10px; transition: all 0.3s ease; opacity: 0.7;">' + jchatIcon('edit') + '</button>';
     if (isCurrentUser && timeDiff <= 2 && !mapped.is_recalled) {
-        html += '<button class="recall-btn" data-message-id="' + mapped.id + '" data-channel="__dm__" aria-label="撤回" title="撤回" style="background: none; border: none; color: #ff3b30; font-size: 14px; cursor: pointer; margin-top: 5px; padding: 2px 6px; border-radius: 10px; transition: all 0.3s ease; opacity: 0.7; margin-left: 5px;">' + jchatIcon('delete') + '</button>';
+        html += '<button class="recall-btn" data-message-id="' + mappedId + '" data-channel="__dm__" aria-label="撤回" title="撤回" style="background: none; border: none; color: #ff3b30; font-size: 14px; cursor: pointer; margin-top: 5px; padding: 2px 6px; border-radius: 10px; transition: all 0.3s ease; opacity: 0.7; margin-left: 5px;">' + jchatIcon('delete') + '</button>';
     }
     html += '</div></div>';
     messageElement.innerHTML = html;

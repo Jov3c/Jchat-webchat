@@ -103,7 +103,11 @@ const io = socketIo(server, {
     }
 });
 const presence = new PresenceRegistry();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const DEFAULT_JWT_SECRET = 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
+if (process.env.NODE_ENV === 'production' && (JWT_SECRET === DEFAULT_JWT_SECRET || JWT_SECRET.length < 32)) {
+    throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
+}
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
 const CHANNELS = ['公共频道1', '公共频道2'];
 const REGISTRATION_ENABLED = true;
@@ -179,43 +183,59 @@ function broadcastUserPresence(userId) {
 
 const { validateUsername, validatePassword, validateFriendReason, validateDeactivationReason } = require('./server/validation');
 
-const ADMIN_CREDENTIALS_FILE = path.join(__dirname, 'server', 'data', 'admin_credentials.json');
+const ADMIN_CREDENTIALS_FILE = process.env.JCHAT_ADMIN_CREDENTIALS_FILE || path.join(__dirname, 'server', 'data', 'admin_credentials.json');
+const BCRYPT_HASH_PREFIX = /^\$2[aby]\$\d\d\$/;
+
+function isStrongAdminPassword(password) {
+    return typeof password === 'string' && password.length >= 12 && password !== 'admin123';
+}
+
+function writeAdminCredentials(credentials) {
+    const dataDir = path.dirname(ADMIN_CREDENTIALS_FILE);
+    fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+    const tempFile = path.join(dataDir, `.admin_credentials.${process.pid}.${Date.now()}.tmp`);
+    const contents = JSON.stringify({ username: credentials.username, passwordHash: credentials.passwordHash }, null, 2);
+    try {
+        fs.writeFileSync(tempFile, contents, { encoding: 'utf8', mode: 0o600 });
+        fs.renameSync(tempFile, ADMIN_CREDENTIALS_FILE);
+        try { fs.chmodSync(ADMIN_CREDENTIALS_FILE, 0o600); } catch (_) {}
+    } finally {
+        try { if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile); } catch (_) {}
+    }
+}
 
 function loadAdminCredentials() {
     const username = process.env.ADMIN_USERNAME || 'admin';
     const password = process.env.ADMIN_PASSWORD || 'admin123';
-    try {
-        const dataDir = path.join(__dirname, 'server', 'data');
-        if (fs.existsSync(ADMIN_CREDENTIALS_FILE)) {
-            const raw = fs.readFileSync(ADMIN_CREDENTIALS_FILE, 'utf8');
-            const parsed = JSON.parse(raw);
-            const loadedPassword = parsed.password != null ? String(parsed.password).trim() : password;
-            const loadedUsername = parsed.username != null ? String(parsed.username).trim() : username;
-            return {
-                username: loadedUsername || username,
-                password: loadedPassword || password
-            };
+    if (fs.existsSync(ADMIN_CREDENTIALS_FILE)) {
+        const parsed = JSON.parse(fs.readFileSync(ADMIN_CREDENTIALS_FILE, 'utf8'));
+        const loadedUsername = typeof parsed.username === 'string' ? parsed.username.trim() : '';
+        if (!loadedUsername) throw new Error('Admin credentials file has no valid username');
+        if (typeof parsed.passwordHash === 'string' && BCRYPT_HASH_PREFIX.test(parsed.passwordHash)) {
+            return { username: loadedUsername, passwordHash: parsed.passwordHash };
         }
-        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-        const initial = { username, password };
-        fs.writeFileSync(ADMIN_CREDENTIALS_FILE, JSON.stringify(initial, null, 2), 'utf8');
-        return initial;
-    } catch (e) {
-        console.warn('[WARN] loadAdminCredentials failed, using env/default:', e.message);
-        return { username, password };
+        if (typeof parsed.password === 'string' && parsed.password.length > 0) {
+            const migrated = { username: loadedUsername, passwordHash: bcrypt.hashSync(parsed.password, 12) };
+            writeAdminCredentials(migrated);
+            return migrated;
+        }
+        throw new Error('Admin credentials file has no valid password hash');
     }
+    if (process.env.NODE_ENV === 'production' && !isStrongAdminPassword(password)) {
+        throw new Error('ADMIN_PASSWORD must be at least 12 characters when initializing admin credentials in production');
+    }
+    const initial = { username, passwordHash: bcrypt.hashSync(password, 12) };
+    writeAdminCredentials(initial);
+    return initial;
 }
 
 function saveAdminCredentials() {
     try {
-        const dataDir = path.join(__dirname, 'server', 'data');
-        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-        fs.writeFileSync(ADMIN_CREDENTIALS_FILE, JSON.stringify({
-            username: ADMIN_CREDENTIALS.username,
-            password: ADMIN_CREDENTIALS.password
-        }, null, 2), 'utf8');
-    } catch (e) {
-        console.error('[ERROR] saveAdminCredentials failed:', e);
+        writeAdminCredentials(ADMIN_CREDENTIALS);
+        return true;
+    } catch (_) {
+        console.error('[ERROR] Could not save admin credentials');
+        return false;
     }
 }
 
@@ -555,7 +575,8 @@ app.post('/api/admin/login', adminLoginRateLimiter, async (req, res) => {
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required' });
     }
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+    const passwordMatches = username === ADMIN_CREDENTIALS.username && await bcrypt.compare(password, ADMIN_CREDENTIALS.passwordHash);
+    if (passwordMatches) {
         const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         res.json({ token, admin: true });
     } else {
@@ -563,7 +584,7 @@ app.post('/api/admin/login', adminLoginRateLimiter, async (req, res) => {
     }
 });
 
-app.put('/api/admin/password', authenticateAdmin, (req, res) => {
+app.put('/api/admin/password', authenticateAdmin, async (req, res) => {
     const rawCurrent = req.body.currentPassword;
     const rawNew = req.body.newPassword;
     const currentPassword = typeof rawCurrent === 'string' ? rawCurrent.trim() : '';
@@ -572,17 +593,23 @@ app.put('/api/admin/password', authenticateAdmin, (req, res) => {
     if (!currentPassword || !newPassword) {
         return res.status(400).json({ error: 'Current password and new password are required' });
     }
+    if (!isStrongAdminPassword(newPassword)) {
+        return res.status(400).json({ error: 'Admin password must be at least 12 characters and not use the default password' });
+    }
 
-    const storedPassword = ADMIN_CREDENTIALS.password != null ? String(ADMIN_CREDENTIALS.password).trim() : '';
-    if (currentPassword !== storedPassword) {
+    if (!await bcrypt.compare(currentPassword, ADMIN_CREDENTIALS.passwordHash)) {
         return res.status(401).json({
-            error: 'Current password is incorrect',
-            hint: '若您曾在旧版本中修改过密码且服务已重启，请使用 .env 中的 ADMIN_PASSWORD（或默认 admin123）作为当前密码重试。'
+            error: 'Current password is incorrect'
         });
     }
 
-    ADMIN_CREDENTIALS.password = newPassword;
-    saveAdminCredentials();
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const previousHash = ADMIN_CREDENTIALS.passwordHash;
+    ADMIN_CREDENTIALS.passwordHash = passwordHash;
+    if (!saveAdminCredentials()) {
+        ADMIN_CREDENTIALS.passwordHash = previousHash;
+        return res.status(500).json({ error: 'Could not save admin password' });
+    }
     res.json({ success: true, message: 'Admin password updated successfully' });
 });
 
