@@ -6,6 +6,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 function getFreePort() {
     return new Promise((resolve, reject) => {
@@ -93,8 +94,15 @@ test('request hardening limits bodies and abusive login attempts while allowing 
     assert.equal(throttled.status, 429);
 });
 
-test('browser Socket.IO uses the configured API origin or the page host', () => {
+test('browser Socket.IO resolves API_ORIGIN, development proxy, and same-origin deployments', () => {
     const chatJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'chat.js'), 'utf8');
-    assert.match(chatJs, /API_ORIGIN/);
-    assert.doesNotMatch(chatJs, /const socketUrl = 'http:\/\/localhost:3000'/);
+    const match = chatJs.match(/function resolveSocketUrl\(\) \{[\s\S]*?\n\}/);
+    assert.ok(match, 'chat.js exposes a dedicated Socket.IO URL resolver');
+    const resolve = (location, API_ORIGIN, JCHAT_API_PORT) => vm.runInNewContext(`${match[0]}; resolveSocketUrl()`, {
+        window: { location, API_ORIGIN, JCHAT_API_PORT }
+    });
+    assert.equal(resolve({ protocol: 'http:', hostname: 'localhost', port: '3001', origin: 'http://localhost:3001' }), 'http://localhost:3000');
+    assert.equal(resolve({ protocol: 'http:', hostname: '192.168.1.20', port: '3001', origin: 'http://192.168.1.20:3001' }), 'http://192.168.1.20:3000');
+    assert.equal(resolve({ protocol: 'https:', hostname: 'chat.example', port: '', origin: 'https://chat.example' }), 'https://chat.example');
+    assert.equal(resolve({ protocol: 'https:', hostname: 'chat.example', port: '', origin: 'https://chat.example' }, 'https://api.example'), 'https://api.example');
 });

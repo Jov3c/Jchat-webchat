@@ -27,8 +27,20 @@ function revealJchatMessageEntry(messageElement, shouldAnimate) {
     }, 10);
 }
 
-const configuredApiOrigin = typeof window.API_ORIGIN === 'string' ? window.API_ORIGIN.trim() : '';
-const socketUrl = configuredApiOrigin || `${window.location.protocol}//${window.location.hostname}:${window.JCHAT_API_PORT || '3000'}`;
+function resolveSocketUrl() {
+    const configuredApiOrigin = typeof window.API_ORIGIN === 'string' ? window.API_ORIGIN.trim() : '';
+    if (configuredApiOrigin) return configuredApiOrigin;
+    const configuredPort = window.JCHAT_API_PORT;
+    if (configuredPort !== undefined && configuredPort !== null && String(configuredPort).trim()) {
+        return `${window.location.protocol}//${window.location.hostname}:${String(configuredPort).trim()}`;
+    }
+    if (window.location.port === '3001') {
+        return `${window.location.protocol}//${window.location.hostname}:3000`;
+    }
+    return window.location.origin;
+}
+
+const socketUrl = resolveSocketUrl();
 
 const socket = io(socketUrl, {
     reconnection: true,
