@@ -176,9 +176,8 @@ const authenticateUser = (req, res, next) => {
 };
 
 function requireUser(req, res, next) {
-    const uid = req.userId ?? req.body?.userId ?? req.query?.userId;
-    const parsed = parseInt(uid);
-    if (!parsed) return res.status(401).json({ error: 'Authorization required' });
+    const parsed = Number.parseInt(req.userId, 10);
+    if (!Number.isInteger(parsed)) return res.status(401).json({ error: 'Authorization required' });
     req.userId = parsed;
     next();
 }
@@ -256,9 +255,76 @@ const storage = multer.diskStorage({
     }
 });
 
+const IMAGE_UPLOAD_TYPES = new Map([
+    ['.jpg', ['image/jpeg']],
+    ['.jpeg', ['image/jpeg']],
+    ['.png', ['image/png']],
+    ['.gif', ['image/gif']],
+    ['.webp', ['image/webp']]
+]);
+const VOICE_UPLOAD_TYPES = new Map([
+    ['.webm', ['audio/webm']],
+    ['.ogg', ['audio/ogg']],
+    ['.mp3', ['audio/mpeg']],
+    ['.wav', ['audio/wav', 'audio/x-wav']],
+    ['.m4a', ['audio/mp4']],
+    ['.aac', ['audio/aac']]
+]);
+
+function removeUploadedFile(file) {
+    if (!file?.path) return;
+    try {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    } catch (error) {
+        console.error('Failed to remove rejected upload:', error.message);
+    }
+}
+
+function cleanupUploadedFiles(req) {
+    removeUploadedFile(req.file);
+    if (Array.isArray(req.files)) req.files.forEach(removeUploadedFile);
+    else if (req.files && typeof req.files === 'object') Object.values(req.files).flat().forEach(removeUploadedFile);
+}
+
 const upload = multer({
-    storage: storage
+    storage,
+    limits: {
+        files: 1,
+        fileSize: 10 * 1024 * 1024,
+        fields: 10,
+        parts: 11,
+        fieldNameSize: 100,
+        fieldSize: 64 * 1024
+    },
+    fileFilter(req, file, cb) {
+        const allowedTypes = file.fieldname === 'voice' ? VOICE_UPLOAD_TYPES : IMAGE_UPLOAD_TYPES;
+        const extension = path.extname(file.originalname).toLowerCase();
+        const permittedMimeTypes = allowedTypes.get(extension);
+        const mimeType = String(file.mimetype || '').toLowerCase().split(';', 1)[0].trim();
+        if (!permittedMimeTypes || !permittedMimeTypes.includes(mimeType)) {
+            const error = new Error('Unsupported file type');
+            error.code = 'INVALID_FILE_TYPE';
+            return cb(error);
+        }
+        cb(null, true);
+    }
 });
+
+function secureSingleUpload(fieldName) {
+    const single = upload.single(fieldName);
+    return (req, res, next) => single(req, res, error => {
+        if (!error) return next();
+        cleanupUploadedFiles(req);
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ error: 'File size exceeds limit (10MB)' });
+        }
+        if (error instanceof multer.MulterError || error.code === 'INVALID_FILE_TYPE') {
+            return res.status(400).json({ error: error.code === 'INVALID_FILE_TYPE' ? 'Unsupported file type' : 'Invalid upload payload' });
+        }
+        console.error('Upload rejected:', error);
+        return res.status(400).json({ error: 'Upload failed' });
+    });
+}
 
 app.get('/api/registration-status', (req, res) => {
     res.json({ enabled: REGISTRATION_ENABLED });
@@ -738,26 +804,26 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-app.post('/api/upload/avatar', upload.single('avatar'), async (req, res) => {
-    const { userId } = req.body;
-
-    if (!req.file || !userId) {
-        return res.status(400).json({ error: 'File and user ID are required' });
+app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, secureSingleUpload('avatar'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'File is required' });
     }
 
     const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const originalExt = path.extname(req.file.originalname).toLowerCase();
     if (!allowedExt.includes(originalExt)) {
-        fs.unlinkSync(req.file.path);
+        cleanupUploadedFiles(req);
         return res.status(400).json({ error: '仅支持 JPG、PNG、GIF、WebP 格式' });
     }
 
+    let createdAvatarPath = null;
     try {
         let avatarUrl;
 
         if (sharp) {
             const isGif = originalExt === '.gif';
             const optimizedPath = path.join(__dirname, 'public', 'uploads', 'optimized-' + req.file.filename);
+            createdAvatarPath = optimizedPath;
             const sharpInstance = sharp(req.file.path)
                 .resize(200, 200, { fit: 'cover' });
 
@@ -773,24 +839,27 @@ app.post('/api/upload/avatar', upload.single('avatar'), async (req, res) => {
         } else {
             const safeName = 'avatar-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + originalExt;
             const destPath = path.join(__dirname, 'public', 'uploads', safeName);
+            createdAvatarPath = destPath;
             fs.renameSync(req.file.path, destPath);
             avatarUrl = 'uploads/' + safeName;
         }
 
-        const updatedUser = db.updateUser(userId, { avatar: avatarUrl });
-        if (!updatedUser) return res.status(404).json({ error: 'User not found' });
+        const updatedUser = db.updateUser(req.userId, { avatar: avatarUrl });
+        if (!updatedUser) {
+            removeUploadedFile({ path: createdAvatarPath });
+            return res.status(404).json({ error: 'User not found' });
+        }
 
         res.json({ success: true, avatar: avatarUrl });
     } catch (error) {
         console.error('Avatar upload error:', error);
-        if (req.file && fs.existsSync(req.file.path)) {
-            try { fs.unlinkSync(req.file.path); } catch (e) { }
-        }
+        cleanupUploadedFiles(req);
+        removeUploadedFile({ path: createdAvatarPath });
         res.status(500).json({ error: error.message || 'Image processing error' });
     }
 });
 
-app.post('/api/upload/image', upload.single('image'), async (req, res) => {
+app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, secureSingleUpload('image'), async (req, res) => {
     if (!req.file) {
         console.error('Upload failed: No file provided');
         return res.status(400).json({ error: 'File is required' });
@@ -799,16 +868,18 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
     const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const originalExt = path.extname(req.file.originalname).toLowerCase();
     if (!allowedExt.includes(originalExt)) {
-        fs.unlinkSync(req.file.path);
+        cleanupUploadedFiles(req);
         return res.status(400).json({ error: '仅支持 JPG、PNG、GIF、WebP 格式' });
     }
 
+    let createdImagePath = null;
     try {
         let imageUrl;
 
         if (sharp) {
             const isGif = originalExt === '.gif';
             const optimizedPath = path.join(__dirname, 'public', 'uploads', 'chat-' + req.file.filename);
+            createdImagePath = optimizedPath;
             const sharpInstance = sharp(req.file.path)
                 .resize(600, 450, { fit: 'inside' });
 
@@ -822,6 +893,7 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
         } else {
             const safeName = 'chat-' + req.file.filename;
             const destPath = path.join(__dirname, 'public', 'uploads', safeName);
+            createdImagePath = destPath;
             fs.renameSync(req.file.path, destPath);
             imageUrl = 'uploads/' + safeName;
         }
@@ -829,6 +901,8 @@ app.post('/api/upload/image', upload.single('image'), async (req, res) => {
         res.json({ success: true, image: imageUrl });
     } catch (error) {
         console.error('Upload failed:', error);
+        cleanupUploadedFiles(req);
+        removeUploadedFile({ path: createdImagePath });
         if (error.code === 'LIMIT_FILE_SIZE') {
             res.status(413).json({ error: 'File size exceeds limit (10MB)' });
         } else {
@@ -924,7 +998,7 @@ app.get('/api/admin/logs/content/:filename', authenticateAdmin, (req, res) => {
     }
 });
 
-app.post('/api/upload/voice', upload.single('voice'), async (req, res) => {
+app.post('/api/upload/voice', authenticateUser, requireAuthenticatedUser, secureSingleUpload('voice'), async (req, res) => {
     if (!req.file) {
         console.error('Voice upload failed: No file provided');
         return res.status(400).json({ error: 'File is required' });
@@ -937,10 +1011,16 @@ app.post('/api/upload/voice', upload.single('voice'), async (req, res) => {
         mimetype: req.file.mimetype
     });
 
+    let voicePath = null;
     try {
         const originalExt = path.extname(req.file.originalname).toLowerCase();
 
-        const voicePath = path.join(__dirname, 'public', 'uploads', 'voice-' + req.file.filename);
+        if (!VOICE_UPLOAD_TYPES.has(originalExt)) {
+            cleanupUploadedFiles(req);
+            return res.status(400).json({ error: 'Unsupported file type' });
+        }
+
+        voicePath = path.join(__dirname, 'public', 'uploads', 'voice-' + req.file.filename);
 
         fs.renameSync(req.file.path, voicePath);
 
@@ -949,6 +1029,8 @@ app.post('/api/upload/voice', upload.single('voice'), async (req, res) => {
         res.json({ success: true, voice: voiceUrl });
     } catch (error) {
         console.error('Voice upload failed:', error);
+        cleanupUploadedFiles(req);
+        removeUploadedFile({ path: voicePath });
         if (error.code === 'LIMIT_FILE_SIZE') {
             res.status(413).json({ error: 'File size exceeds limit (10MB)' });
         } else {

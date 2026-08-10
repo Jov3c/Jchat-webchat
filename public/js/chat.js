@@ -499,10 +499,10 @@ async function sendVoiceMessage(audioBlob) {
 
         const formData = new FormData();
         formData.append('voice', audioBlob, `voice.${fileExtension}`);
-        formData.append('userId', currentUser.id);
 
         const response = await fetch('/api/upload/voice', {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: formData
         });
 
@@ -2289,6 +2289,7 @@ async function uploadImage(file) {
     try {
         const response = await fetch('/api/upload/image', {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: formData
         });
 
@@ -3713,7 +3714,6 @@ saveSettings.addEventListener('click', async () => {
     if (avatarFile) {
         const formData = new FormData();
         formData.append('avatar', avatarFile);
-        formData.append('userId', String(currentUser.id));
 
         try {
             const response = await fetch('/api/upload/avatar', {
@@ -4107,7 +4107,7 @@ function saveSticker(sticker, bucket = 'mine') { const store = stickerStorage();
 function collectSticker(src) { saveSticker({ src, name: '收藏的表情包' }, 'favorite'); showNotification('已收藏表情包', 'success'); }
 function renderStickerPage() { if (!stickerGrid) return; const store = stickerStorage(); const items = store[String(currentUser?.id || 'guest')]?.[stickerTab] || []; const pages = Math.max(1, Math.ceil(items.length / STICKER_PAGE_SIZE)); stickerPageIndex = Math.max(0, Math.min(stickerPageIndex, pages - 1)); stickerGrid.innerHTML = ''; if (!items.length) { const empty = document.createElement('p'); empty.className = 'sticker-empty'; empty.textContent = stickerTab === 'mine' ? '添加图片，建立你的表情包' : stickerTab === 'favorite' ? '收藏聊天里的表情包' : '最近还没有使用记录'; stickerGrid.appendChild(empty); } items.slice(stickerPageIndex * STICKER_PAGE_SIZE, (stickerPageIndex + 1) * STICKER_PAGE_SIZE).forEach(sticker => { const button = document.createElement('button'); button.type = 'button'; button.className = 'sticker-item'; button.title = sticker.name || '发送表情包'; const image = document.createElement('img'); image.src = sticker.src; image.alt = sticker.name || '表情包'; button.appendChild(image); button.addEventListener('click', () => sendSticker(sticker)); stickerGrid.appendChild(button); }); if (stickerPageLabel) stickerPageLabel.textContent = `${stickerPageIndex + 1} / ${pages}`; if (stickerPrevPage) stickerPrevPage.disabled = stickerPageIndex === 0; if (stickerNextPage) stickerNextPage.disabled = stickerPageIndex >= pages - 1; }
 function emitStickerMessage(image) { if (viewMode === 'dm') { if (!currentDmPeer?.id) return showNotification('请先选择好友', 'info'); socket.emit('sendPrivateMessage', { fromUserId: currentUser.id, toUserId: currentDmPeer.id, content: null, image, voice: null, reply_to: currentReplyTo || undefined }); } else socket.emit('sendMessage', { userId: currentUser.id, channel: currentChannel, content: null, image, reply_to: currentReplyTo }); saveSticker({ src: typeof image === 'string' ? image : '', name: '最近使用' }, 'recent'); cancelReply(); }
-async function sendSticker(sticker) { stickerPicker?.classList.remove('show'); if (sticker.src.startsWith('data:')) { const response = await fetch(sticker.src); const blob = await response.blob(); const form = new FormData(); form.append('image', blob, sticker.name || 'sticker.png'); const upload = await fetch('/api/upload/image', { method: 'POST', body: form }); const data = await upload.json(); if (data.success) emitStickerMessage(data.image); } else emitStickerMessage(sticker.src); }
+async function sendSticker(sticker) { stickerPicker?.classList.remove('show'); if (sticker.src.startsWith('data:')) { const response = await fetch(sticker.src); const blob = await response.blob(); const form = new FormData(); form.append('image', blob, sticker.name || 'sticker.png'); const upload = await fetch('/api/upload/image', { method: 'POST', headers: getAuthHeaders(), body: form }); const data = await upload.json(); if (data.success) emitStickerMessage(data.image); } else emitStickerMessage(sticker.src); }
 function initEmojiPicker() { if (!emojiBtn || !stickerPicker) return; renderStickerPage(); emojiBtn.addEventListener('click', event => { event.stopPropagation(); stickerPicker.classList.toggle('show'); renderStickerPage(); }); document.querySelectorAll('[data-sticker-tab]').forEach(tab => tab.addEventListener('click', () => { stickerTab = tab.dataset.stickerTab; stickerPageIndex = 0; document.querySelectorAll('.sticker-tab').forEach(item => item.classList.toggle('active', item === tab)); renderStickerPage(); })); stickerPrevPage?.addEventListener('click', () => { stickerPageIndex -= 1; renderStickerPage(); }); stickerNextPage?.addEventListener('click', () => { stickerPageIndex += 1; renderStickerPage(); }); stickerUpload?.addEventListener('change', event => Array.from(event.target.files || []).forEach(file => { const reader = new FileReader(); reader.onload = () => { saveSticker({ src: reader.result, name: file.name }); stickerTab = 'mine'; renderStickerPage(); }; reader.readAsDataURL(file); })); window.addEventListener('click', () => stickerPicker.classList.remove('show')); stickerPicker.addEventListener('click', event => event.stopPropagation()); }
 
 function initCustomFooter() {

@@ -144,7 +144,6 @@
             if (avatarFile) {
                 var formData = new FormData();
                 formData.append('avatar', avatarFile);
-                formData.append('userId', String(userObj.id));
                 fetch('/api/upload/avatar', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token },
