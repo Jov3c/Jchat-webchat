@@ -4,6 +4,16 @@ const http = require('http');
 const fs = require('fs');
 const app = express();
 const proxy = require('express-http-proxy');
+app.use((req, res, next) => {
+    res.set({
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN',
+        'Referrer-Policy': 'same-origin',
+        'Permissions-Policy': 'camera=(), microphone=(self)',
+        'Cross-Origin-Resource-Policy': 'same-origin'
+    });
+    next();
+});
 const apiProxy = proxy('http://localhost:3000', {
     proxyReqPathResolver: (req) => {
         const path = req.originalUrl;

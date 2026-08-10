@@ -21,14 +21,88 @@ const { PresenceRegistry, VALID_PRESENCE_STATUSES } = require('./server/presence
 const DEFAULT_AVATAR = 'images/default.png';
 const app = express();
 const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
+
+function parsePositiveInteger(value, fallback, minimum = 1, maximum = Number.MAX_SAFE_INTEGER) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
+}
+
+function isAllowedOrigin(origin) {
+    if (!origin) return true;
+    let url;
+    try {
+        url = new URL(origin);
+    } catch (_) {
+        return false;
+    }
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    const configured = (process.env.JCHAT_ALLOWED_ORIGINS || '')
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
+    if (configured.includes(origin)) return true;
+    const host = url.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+    const frontendPort = String(process.env.FRONTEND_PORT || 3001);
+    const apiPort = String(PORT);
+    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+    if (port !== frontendPort && port !== apiPort) return false;
+    const octets = host.split('.').map(Number);
+    return octets.length === 4 && octets.every(Number.isInteger) && (
+        octets[0] === 10 ||
+        (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+        (octets[0] === 192 && octets[1] === 168)
+    );
+}
+
+function createRateLimiter(envName, fallbackMax) {
+    const requests = new Map();
+    const windowMs = parsePositiveInteger(process.env.JCHAT_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000);
+    const max = parsePositiveInteger(process.env[envName], fallbackMax, 1, 10_000);
+    const cleanup = () => {
+        const now = Date.now();
+        for (const [key, entry] of requests) {
+            if (now >= entry.resetAt) requests.delete(key);
+        }
+    };
+    const cleanupTimer = setInterval(cleanup, Math.min(windowMs, 60_000));
+    cleanupTimer.unref();
+    return (req, res, next) => {
+        const key = req.ip || req.socket.remoteAddress || 'unknown';
+        const now = Date.now();
+        const entry = requests.get(key);
+        if (!entry || now >= entry.resetAt) {
+            requests.set(key, { count: 1, resetAt: now + windowMs });
+            return next();
+        }
+        if (entry.count >= max) {
+            res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
+            return res.status(429).json({ error: 'Too many requests, please try again later' });
+        }
+        entry.count += 1;
+        next();
+    };
+}
+
+const corsOptions = {
+    origin(origin, callback) {
+        callback(null, isAllowedOrigin(origin));
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+};
 const io = socketIo(server, {
-    cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
+    cors: corsOptions,
+    maxHttpBufferSize: parsePositiveInteger(process.env.JCHAT_SOCKET_MAX_HTTP_BUFFER_SIZE, 1_000_000, 1_024, 10_000_000),
+    connectTimeout: parsePositiveInteger(process.env.JCHAT_SOCKET_CONNECT_TIMEOUT_MS, 20_000, 1_000, 120_000),
+    pingTimeout: parsePositiveInteger(process.env.JCHAT_SOCKET_PING_TIMEOUT_MS, 20_000, 1_000, 120_000),
+    pingInterval: parsePositiveInteger(process.env.JCHAT_SOCKET_PING_INTERVAL_MS, 25_000, 1_000, 120_000),
+    perMessageDeflate: false,
+    allowRequest(req, callback) {
+        callback(null, isAllowedOrigin(req.headers.origin));
     }
 });
 const presence = new PresenceRegistry();
-const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
 const CHANNELS = ['公共频道1', '公共频道2'];
@@ -146,12 +220,42 @@ function saveAdminCredentials() {
 }
 
 const ADMIN_CREDENTIALS = loadAdminCredentials();
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE']
+if (process.env.JCHAT_TRUST_PROXY) {
+    app.set('trust proxy', process.env.JCHAT_TRUST_PROXY === 'true' ? true : process.env.JCHAT_TRUST_PROXY);
+}
+const loginRateLimiter = createRateLimiter('JCHAT_AUTH_RATE_LIMIT_MAX', 10);
+const registrationRateLimiter = createRateLimiter('JCHAT_REGISTRATION_RATE_LIMIT_MAX', 20);
+const adminLoginRateLimiter = createRateLimiter('JCHAT_ADMIN_RATE_LIMIT_MAX', 5);
+const uploadRateLimiter = createRateLimiter('JCHAT_UPLOAD_RATE_LIMIT_MAX', 30);
+app.use((req, res, next) => {
+    res.set({
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN',
+        'Referrer-Policy': 'same-origin',
+        'Permissions-Policy': 'camera=(), microphone=(self)',
+        'Cross-Origin-Resource-Policy': 'same-origin'
+    });
+    next();
+});
+app.use((req, res, next) => {
+    if (req.headers.origin && !isAllowedOrigin(req.headers.origin)) {
+        return res.status(403).json({ error: 'Origin is not allowed' });
+    }
+    next();
+});
+app.use(cors(corsOptions));
+app.use(express.json({ limit: process.env.JCHAT_JSON_LIMIT || '1mb' }));
+app.use(express.urlencoded({
+    extended: true,
+    limit: process.env.JCHAT_URLENCODED_LIMIT || '100kb',
+    parameterLimit: parsePositiveInteger(process.env.JCHAT_URLENCODED_PARAMETER_LIMIT, 1_000, 1, 100_000)
 }));
-app.use(express.json({ limit: '500mb' }));
-app.use(express.urlencoded({ extended: true, limit: '500mb', parameterLimit: 1000000 }));
+app.use((error, req, res, next) => {
+    if (error?.type === 'entity.too.large' || error?.status === 413) {
+        return res.status(413).json({ error: 'Request body too large' });
+    }
+    next(error);
+});
 const authenticateUser = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -358,7 +462,7 @@ app.post('/api/channel/verify-password', authenticateUser, requireAuthenticatedU
 app.get('/api/channel/:channel/access/:userId', authenticateUser, requireAuthenticatedUser, (req, res) => {
     return res.json({ hasAccess: canAccessChannel(req.params.channel, req.userId) });
 });
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', registrationRateLimiter, async (req, res) => {
     if (!REGISTRATION_ENABLED) {
         return res.status(403).json({ error: '注册功能已关闭' });
     }
@@ -409,7 +513,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginRateLimiter, async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -445,7 +549,7 @@ app.post('/api/logout', authenticateUser, requireAuthenticatedUser, (req, res) =
     res.json({ success: true });
 });
 
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', adminLoginRateLimiter, async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -804,7 +908,7 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, secureSingleUpload('avatar'), async (req, res) => {
+app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('avatar'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'File is required' });
     }
@@ -859,7 +963,7 @@ app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, secur
     }
 });
 
-app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, secureSingleUpload('image'), async (req, res) => {
+app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('image'), async (req, res) => {
     if (!req.file) {
         console.error('Upload failed: No file provided');
         return res.status(400).json({ error: 'File is required' });
@@ -998,7 +1102,7 @@ app.get('/api/admin/logs/content/:filename', authenticateAdmin, (req, res) => {
     }
 });
 
-app.post('/api/upload/voice', authenticateUser, requireAuthenticatedUser, secureSingleUpload('voice'), async (req, res) => {
+app.post('/api/upload/voice', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('voice'), async (req, res) => {
     if (!req.file) {
         console.error('Voice upload failed: No file provided');
         return res.status(400).json({ error: 'File is required' });

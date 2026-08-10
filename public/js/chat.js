@@ -27,7 +27,8 @@ function revealJchatMessageEntry(messageElement, shouldAnimate) {
     }, 10);
 }
 
-const socketUrl = 'http://localhost:3000';
+const configuredApiOrigin = typeof window.API_ORIGIN === 'string' ? window.API_ORIGIN.trim() : '';
+const socketUrl = configuredApiOrigin || `${window.location.protocol}//${window.location.hostname}:${window.JCHAT_API_PORT || '3000'}`;
 
 const socket = io(socketUrl, {
     reconnection: true,
