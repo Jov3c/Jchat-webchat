@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Jchat — Atelier Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #4a3d38;
+      --ink-soft: #6e6059;
+      --muted: #9b8e86;
+      --canvas: #f7f0e7;
+      --canvas-deep: #eee2d4;
+      --paper: rgba(255, 252, 247, .82);
+      --line: rgba(117, 91, 70, .18);
+      --coral: #eb7c6b;
+      --coral-deep: #d96456;
+      --coral-wash: #fde7df;
+      --lavender: #8d6bcc;
+      --lavender-wash: #eee8fa;
+      --sage: #769d74;
+      --sage-wash: #e5f0e3;
+      --shadow: 0 18px 48px rgba(87, 62, 43, .07);
+      --serif: "Noto Serif SC", Georgia, serif;
+      --sans: "DM Sans", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; color: var(--ink); font-family: var(--sans); background: radial-gradient(circle at 52% 8%, rgba(255,255,255,.96), transparent 28%), linear-gradient(135deg, #f7f1e8, #fdf9f2 50%, #f2e8dc); }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    button:focus-visible { outline: 2px solid var(--lavender); outline-offset: 3px; }
+    .preview-shell { min-height: 100vh; padding: 20px 24px 28px; overflow: hidden; }
+    .topbar { height: 64px; max-width: 1710px; margin: 0 auto 14px; display: grid; grid-template-columns: minmax(250px,1fr) minmax(230px,288px) auto; gap: 20px; align-items: center; }
+    .brand { display: inline-flex; align-items: baseline; gap: 12px; border: 0; padding: 0; background: none; text-align: left; }
+    .brand strong { font: 500 clamp(27px,2.4vw,40px)/1 var(--serif); letter-spacing: -.07em; }
+    .brand b { color: var(--coral); font: 700 16px var(--sans); letter-spacing: 0; margin-left: 2px; }
+    .brand em { color: var(--lavender); font: italic 12px/1.2 var(--serif); white-space: nowrap; }
+    .nav { display: none; }
+    .nav button { border: 0; background: transparent; padding: 10px 14px; display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; color: var(--ink-soft); font-size: 13px; transition: .2s ease; }
+    .nav button.active { color: var(--ink); background: rgba(235,124,107,.09); box-shadow: inset 0 0 0 1px rgba(215,100,86,.13); }
+    .nav button:hover { background: rgba(255,255,255,.5); }
+    .top-search { justify-self: end; width: min(100%, 288px); height: 43px; padding: 0 15px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.27); color: var(--muted); }
+    .top-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: none; color: var(--ink); font: 12px var(--sans); }
+    .avatar { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(94,69,52,.52); border-radius: 50%; color: #fff; background: linear-gradient(145deg,#ed8f7c,#d86e61); box-shadow: inset 0 0 0 3px #f9efe6; font: 600 11px var(--serif); }
+    .profile { display: flex; align-items: center; gap: 7px; border: 0; background: transparent; }
+    .screen { display: none; max-width: 1710px; margin: 0 auto; animation: arrive .42s cubic-bezier(.2,.8,.2,1); }
+    .screen.active { display: block; }
+    .card { border: 1px solid var(--line); border-radius: 26px; background: var(--paper); box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.82); }
+    .workspace { height: min(738px, calc(100vh - 118px)); min-height: 590px; display: grid; grid-template-columns: 276px minmax(500px,1fr) 326px; gap: 18px; }
+    .library { min-height: 0; padding: 16px 14px 14px; display: flex; flex-direction: column; }
+    .heading { height: 33px; padding: 0 5px 10px; display: flex; align-items: center; justify-content: space-between; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 700; color: var(--ink-soft); }
+    .small-button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; background: rgba(255,255,255,.35); }
+    .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 2px 0 10px; border: 1px solid var(--line); border-radius: 13px; }
+    .mode button { height: 32px; border: 0; border-radius: 9px; background: transparent; font-size: 12px; color: var(--ink-soft); }
+    .mode button.selected { background: rgba(255,255,255,.78); box-shadow: 0 2px 8px rgba(93,64,47,.08); color: var(--ink); }
+    .group-label { margin: 11px 5px 5px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+    .channel-list { display: flex; flex-direction: column; gap: 4px; overflow: auto; scrollbar-width: none; }
+    .library-quote { display: none; }
+    .channel { width: 100%; min-height: 57px; display: grid; grid-template-columns: 40px 1fr auto; gap: 9px; align-items: center; padding: 7px 9px; border: 1px solid transparent; border-radius: 15px; background: transparent; text-align: left; transition: .2s ease; }
+    .channel:hover { background: rgba(255,255,255,.46); }
+    .channel.selected { background: rgba(253,234,226,.74); border-color: rgba(235,124,107,.42); box-shadow: 0 8px 20px rgba(195,91,70,.07); }
+    .channel-badge { width: 39px; height: 39px; border-radius: 50%; display: grid; place-items: center; color: var(--coral-deep); background: radial-gradient(circle at 30% 22%,#fff, #f7dcd3); font: 600 15px var(--serif); box-shadow: inset 0 0 0 1px rgba(121,86,67,.07); }
+    .channel.dm .channel-badge { color: var(--lavender); background: radial-gradient(circle at 30% 22%,#fff, #e8dff7); }
+    .channel strong { display: block; font: 500 15px/1.2 var(--serif); }
+    .channel small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .unread { min-width: 17px; height: 17px; padding: 0 5px; display: grid; place-items: center; border-radius: 99px; color: #fff; background: var(--coral); font-size: 9px; font-weight: 700; }
+    .conversation { min-width: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(circle at 55% 20%, rgba(255,255,255,.92), transparent 38%), rgba(255,252,247,.72); }
+    .conversation::after { content:""; position:absolute; inset:0; pointer-events:none; box-shadow: inset 0 0 90px rgba(124,82,51,.035); }
+    .conversation-header { position: relative; z-index: 1; height: 75px; padding: 0 21px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    .channel-title { display: flex; align-items: center; gap: 12px; }
+    .channel-title .channel-badge { width: 40px; height: 40px; }
+    .channel-title h1 { margin: 0; font: 500 23px/1 var(--serif); letter-spacing: -.04em; }
+    .channel-title p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+    .header-actions { display: flex; gap: 7px; }
+    .round-action { width: 35px; height: 35px; border: 1px solid var(--line); border-radius: 11px; display:grid; place-items:center; background:rgba(255,255,255,.36); }
+    .message-stream { position: relative; z-index: 1; flex: 1; min-height: 0; padding: 24px clamp(19px,3vw,42px); overflow: auto; }
+    .day-mark { display:flex; align-items:center; gap:9px; margin:0 0 22px; color:var(--muted); font-size:10px; }
+    .day-mark::before,.day-mark::after { content:""; height:1px; flex:1; background:var(--line); }
+    .message { display:grid; grid-template-columns:34px 1fr; gap:10px; margin-bottom:18px; max-width: 84%; }
+    .message.you { margin-left:auto; display:flex; flex-direction:row-reverse; }
+    .message-avatar { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:var(--lavender-wash); color:var(--lavender); font:600 10px var(--serif); }
+    .message.you .message-avatar { background:var(--coral-wash); color:var(--coral-deep); }
+    .message-meta { display:flex; align-items:baseline; gap:7px; margin-bottom:5px; }
+    .message-meta strong { font:500 12px var(--serif); }
+    .message-meta time { color:var(--muted); font-size:9px; }
+    .bubble { padding:11px 13px; border:1px solid var(--line); border-radius:4px 15px 15px 15px; background:rgba(255,255,255,.68); font-size:13px; line-height:1.55; color:var(--ink-soft); }
+    .message.you .bubble { border-color:rgba(235,124,107,.25); border-radius:15px 4px 15px 15px; background:var(--coral-wash); color:var(--ink); }
+    .note { max-width:78%; margin:26px auto; padding:11px 14px; display:flex; gap:9px; align-items:flex-start; border-radius:13px; background:rgba(141,107,204,.065); color:#725a94; font:11px/1.45 var(--serif); }
+    .note b { display:block; color:var(--ink); margin-bottom:2px; }
+    .composer { position:relative; z-index:1; padding:14px 18px 17px; border-top:1px solid var(--line); }
+    .composer-inner { min-height:54px; padding:7px 8px 7px 14px; display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.65); box-shadow:0 9px 20px rgba(71,49,35,.045); }
+    .composer input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--ink); font:13px var(--sans); }
+    .composer input::placeholder { color:#ad9f96; }
+    .send { width:39px; height:39px; border:0; border-radius:11px; display:grid; place-items:center; background:linear-gradient(115deg,#ed8a72,#e87868); color:#fff; box-shadow:0 7px 16px rgba(208,90,70,.18); }
+    .details { padding:19px; overflow:auto; scrollbar-width:none; }
+    .detail-kicker { display:flex; gap:7px; align-items:center; color:#805e57; font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+    .detail-kicker svg { color:var(--coral); }
+    .details h2 { margin:15px 0 3px; font:500 35px/.98 var(--serif); letter-spacing:-.04em; }
+    .details > em { color:var(--lavender); font:italic 12px var(--serif); }
+    .details > p { margin:18px 0 16px; color:var(--ink-soft); font:500 13px/1.55 var(--serif); }
+    .rule { height:1px; background:var(--line); }
+    .detail-heading { margin:16px 0 9px; color:var(--ink-soft); font:600 10px var(--sans); text-transform:uppercase; letter-spacing:.13em; }
+    .member { display:flex; align-items:center; gap:9px; padding:7px 0; }
+    .member .avatar { width:30px; height:30px; font-size:9px; box-shadow:inset 0 0 0 2px #f9efe6; }
+    .member b { display:block; font:500 13px var(--serif); }
+    .member small { display:block; color:var(--muted); margin-top:2px; font-size:9px; }
+    .status { width:7px; height:7px; margin-left:auto; border-radius:50%; background:var(--sage); box-shadow:0 0 0 3px var(--sage-wash); }
+    .pinned { margin-top:15px; padding:11px; border-radius:13px; background:rgba(198,154,94,.09); color:#85653b; font:11px/1.45 var(--serif); }
+    .pinned b { display:block; margin-bottom:3px; color:var(--ink); }
+    .action-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:15px; }
+    .action-grid button { min-height:36px; display:flex; justify-content:center; align-items:center; gap:6px; border:1px solid var(--line); border-radius:10px; background:rgba(255,255,255,.34); color:var(--ink-soft); font-size:10px; }
+    .action-grid button.primary { grid-column:1/-1; border:0; background:linear-gradient(115deg,#ed8a72,#e87868); color:#fff; box-shadow:0 8px 18px rgba(208,90,70,.15); }
+    .bento { margin-top:18px; display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:18px; }
+    .bento article { min-height:135px; padding:16px; border:1px solid var(--line); border-radius:22px; background:var(--paper); box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.82); }
+    .bento .quote-card { background:linear-gradient(145deg,rgba(255,248,239,.92),rgba(255,241,230,.72)); }
+    .bento h3 { margin:7px 0 3px; font:500 17px var(--serif); }
+    .bento p { margin:5px 0 0; color:var(--muted); font:11px/1.45 var(--serif); }
+    .bento footer { margin-top:13px; padding-top:8px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; color:var(--ink-soft); font:10px var(--serif); }
+    .auth-layout { min-height:calc(100vh - 118px); display:grid; grid-template-columns:1.1fr .9fr; gap:18px; }
+    .auth-art { position:relative; overflow:hidden; padding:clamp(34px,6vw,86px); display:flex; flex-direction:column; justify-content:end; background:radial-gradient(circle at 56% 34%,rgba(255,255,255,.93),transparent 29%),linear-gradient(145deg,#fcefe6,#f7f1e9); }
+    .auth-art::before { content:""; position:absolute; width:58%; aspect-ratio:1; top:12%; left:21%; border-radius:50%; background:radial-gradient(circle at 35% 28%,#fff,rgba(235,124,107,.17) 38%,rgba(141,107,204,.11) 68%,transparent 69%); filter:blur(.2px); }
+    .auth-art::after { content:""; position:absolute; inset:auto 8% 12% auto; width:150px; height:160px; border:1px solid rgba(235,124,107,.38); border-radius:30px 30px 70px 70px; transform:rotate(13deg); background:linear-gradient(145deg,rgba(255,255,255,.42),rgba(141,107,204,.08)); }
+    .auth-art > * { position:relative; z-index:1; }
+    .auth-art .eyebrow { color:var(--coral-deep); }
+    .auth-art h1 { max-width:600px; margin:12px 0; font:500 clamp(35px,4.4vw,68px)/1.08 var(--serif); letter-spacing:-.06em; }
+    .auth-art p { max-width:390px; color:var(--ink-soft); font:500 15px/1.6 var(--serif); }
+    .auth-note { width:168px; margin-top:22px; padding:13px 16px; transform:rotate(-3deg); background:#fff0c7; box-shadow:0 8px 17px rgba(93,69,43,.12); color:#5c5148; font:500 12px/1.5 var(--serif); }
+    .auth-note b { display:block; color:var(--lavender); margin-bottom:3px; font:italic 12px var(--serif); }
+    .auth-form { align-self:center; width:min(100%,450px); margin:auto; padding:clamp(26px,4vw,52px); }
+    .auth-form .brand { margin-bottom:34px; }
+    .auth-form h2 { margin:0; font:500 38px/1.1 var(--serif); letter-spacing:-.05em; }
+    .auth-form > p { color:var(--muted); margin:8px 0 29px; font-size:12px; }
+    .field { margin:15px 0; }
+    .field label { display:block; margin-bottom:7px; font-size:11px; font-weight:700; letter-spacing:.05em; }
+    .field input { width:100%; height:47px; padding:0 13px; border:1px solid var(--line); border-radius:12px; outline:0; background:rgba(255,255,255,.53); color:var(--ink); }
+    .field input:focus { border-color:rgba(141,107,204,.55); box-shadow:0 0 0 3px rgba(141,107,204,.1); }
+    .auth-submit { width:100%; height:47px; margin-top:8px; border:0; border-radius:12px; color:#fff; background:linear-gradient(115deg,#ed8a72,#e87868); box-shadow:0 10px 22px rgba(208,90,70,.17); font-weight:700; }
+    .auth-form footer { margin-top:21px; color:var(--muted); text-align:center; font-size:11px; }
+    .auth-form a { color:var(--lavender); text-decoration:none; font-weight:700; }
+    .admin-layout { min-height:calc(100vh - 118px); display:grid; grid-template-columns:252px 1fr; gap:18px; }
+    .admin-nav { padding:16px 14px; }
+    .admin-nav .brand { margin:5px 7px 25px; }
+    .admin-link { width:100%; margin:3px 0; padding:12px; border:1px solid transparent; border-radius:13px; display:flex; align-items:center; gap:10px; background:transparent; color:var(--ink-soft); text-align:left; font-size:12px; }
+    .admin-link.active { background:var(--coral-wash); border-color:rgba(235,124,107,.35); color:var(--ink); }
+    .admin-main { padding:clamp(20px,3vw,38px); }
+    .admin-main header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px; }
+    .admin-main h1 { margin:4px 0 0; font:500 clamp(30px,3vw,46px)/1 var(--serif); letter-spacing:-.05em; }
+    .admin-main header p { margin:8px 0 0; color:var(--muted); font-size:12px; }
+    .admin-primary { height:39px; padding:0 14px; border:0; border-radius:10px; background:linear-gradient(115deg,#ed8a72,#e87868); color:#fff; font-size:11px; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; }
+    .stat { padding:16px; border:1px solid var(--line); border-radius:17px; background:rgba(255,255,255,.43); }
+    .stat span { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.1em; }
+    .stat b { display:block; margin-top:9px; font:500 28px var(--serif); }
+    .stat em { color:var(--sage); font-style:normal; font-size:10px; }
+    .admin-grid { margin-top:17px; display:grid; grid-template-columns:1.35fr .9fr; gap:17px; }
+    .table-card,.insight-card { padding:17px; }
+    .table-card h2,.insight-card h2 { margin:2px 0 14px; font:500 20px var(--serif); }
+    table { width:100%; border-collapse:collapse; font-size:11px; }
+    th { padding:0 8px 10px; color:var(--muted); text-align:left; font-size:9px; letter-spacing:.1em; text-transform:uppercase; }
+    td { padding:12px 8px; border-top:1px solid var(--line); }
+    .tag { display:inline-block; padding:4px 7px; border-radius:99px; background:var(--sage-wash); color:#537751; font-size:9px; }
+    .activity { padding:11px 0; border-top:1px solid var(--line); display:flex; gap:9px; }
+    .activity:first-of-type { border-top:0; }
+    .activity i { width:9px; height:9px; margin-top:4px; flex:none; border-radius:50%; background:var(--coral); box-shadow:0 0 0 4px var(--coral-wash); }
+    .activity b { display:block; font:500 12px var(--serif); }
+    .activity small { display:block; margin-top:3px; color:var(--muted); font-size:9px; }
+    .icon { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    @keyframes arrive { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+    @media (max-width: 1100px) { .workspace { grid-template-columns:250px minmax(0,1fr); } .details { display:none; } .topbar { grid-template-columns:1fr auto auto; } .nav { display:none; } .bento { grid-template-columns:1fr 1fr; } .bento article:last-child { display:none; } }
+    @media (max-width: 760px) { .preview-shell { padding:12px 12px 22px; } .topbar { height:49px; grid-template-columns:1fr auto; margin-bottom:10px; } .brand strong { font-size:28px; } .brand em,.top-search { display:none; } .profile svg { display:none; } .workspace { height:calc(100vh - 83px); min-height:570px; display:block; } .library { display:none; } .conversation { height:100%; border-radius:21px; } .conversation-header { height:67px; padding:0 14px; } .channel-title h1 { font-size:20px; } .message-stream { padding:18px 15px; } .message { max-width:94%; } .composer { padding:10px 12px 12px; } .bento { display:none; } .auth-layout { min-height:calc(100vh - 82px); display:block; } .auth-art { display:none; } .auth-form { min-height:calc(100vh - 82px); display:flex; flex-direction:column; justify-content:center; padding:27px; } .admin-layout { display:block; } .admin-nav { display:none; } .admin-main { padding:22px; } .stats,.admin-grid { grid-template-columns:1fr; } .table-card { overflow:auto; } }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms!important; transition-duration:.01ms!important; scroll-behavior:auto!important; } }
+  </style>
+</head>
+<body>
+  <main class="preview-shell">
+    <header class="topbar">
+      <div class="brand" aria-label="Jchat"><strong>Jchat<b>+</b></strong></div>
+      <nav class="nav" aria-label="预览页面导航">
+        <button class="active" data-screen="chat"><svg class="icon" viewBox="0 0 24 24"><path d="M20 15a4 4 0 0 1-4 4H8l-4 3v-7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4z"/></svg>聊天工作台</button>
+        <button data-screen="auth"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg>账户体验</button>
+        <button data-screen="admin"><svg class="icon" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>管理后台</button>
+      </nav>
+      <label class="top-search"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input placeholder="搜索频道、消息或成员"></label>
+      <button class="profile" aria-label="打开个人资料"><span class="avatar">JC</span><svg class="icon" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button>
+    </header>
+
+    <section class="screen active" id="chat">
+      <div class="workspace">
+        <aside class="library card">
+          <div class="heading"><span class="eyebrow">Conversation library</span><button class="small-button" aria-label="新建频道"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          <div class="mode"><button class="selected">频道</button><button>私聊</button></div>
+          <p class="group-label">正在探索</p>
+          <div class="channel-list">
+            <button class="channel selected"><span class="channel-badge">1</span><span><strong>频道1</strong><small>4 位成员正在对话</small></span><span class="unread">3</span></button>
+            <button class="channel"><span class="channel-badge">2</span><span><strong>频道2</strong><small>安静的灵感角落</small></span></button>
+            <p class="group-label">最近私聊</p>
+            <button class="channel dm"><span class="channel-badge">林</span><span><strong>林一</strong><small>明天见，我带上方案</small></span><span class="unread">1</span></button>
+            <button class="channel dm"><span class="channel-badge">苏</span><span><strong>苏雨</strong><small>2 小时前</small></span></button>
+          </div>
+          <div class="library-quote"><span>✦</span><p>一段好的对话，<br>从好奇开始。</p><em>Keep exploring!</em></div>
+        </aside>
+
+        <section class="conversation card">
+          <header class="conversation-header">
+            <div class="channel-title"><span class="channel-badge">1</span><div><h1>频道1</h1><p>轻盈地交换此刻的想法</p></div></div>
+            <div class="header-actions"><button class="round-action" aria-label="搜索"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button class="round-action" aria-label="频道设置"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H5.3v-3h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.2h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.5 1z"/></svg></button></div>
+          </header>
+          <div class="message-stream">
+            <div class="day-mark">今天，星期一</div>
+            <div class="message"><span class="message-avatar">林</span><div><div class="message-meta"><strong>林一</strong><time>10:24</time></div><div class="bubble">我把上午的想法整理成三个方向了。我们是否把重点放在“更安静、更清晰”的体验上？</div></div></div>
+            <div class="message you"><span class="message-avatar">JC</span><div><div class="message-meta"><strong>你</strong><time>10:27</time></div><div class="bubble">同意。不要堆叠功能，让每个信息区都有自己的呼吸感。</div></div></div>
+            <div class="note"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg><p><b>频道提示</b>在这里分享草稿、灵感和需要一起思考的问题。</p></div>
+            <div class="message"><span class="message-avatar">苏</span><div><div class="message-meta"><strong>苏雨</strong><time>10:31</time></div><div class="bubble">我喜欢参考里那种像笔记本一样的卡片。它让信息显得很有温度。</div></div></div>
+          </div>
+          <div class="composer"><div class="composer-inner"><button class="round-action" aria-label="添加附件"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20V4M5 11l7-7 7 7"/></svg></button><input placeholder="写下你正在想的事…"><button class="send" aria-label="发送消息"><svg class="icon" viewBox="0 0 24 24"><path d="m4 4 16 8-16 8 3-8z"/></svg></button></div></div>
+        </section>
+
+        <aside class="details card">
+          <div class="detail-kicker"><svg class="icon" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M8 12h8"/></svg>频道笔记</div>
+          <h2>频道1</h2><em>Ideas, in their first form</em>
+          <p>给正在成形的想法一个临时但认真的位置。保持轻盈，也保持真诚。</p>
+          <div class="rule"></div><h3 class="detail-heading">此刻在这里</h3>
+          <div class="member"><span class="avatar">JC</span><span><b>管理员</b><small>正在输入</small></span><i class="status"></i></div>
+          <div class="member"><span class="avatar">LY</span><span><b>林一</b><small>刚刚活跃</small></span><i class="status"></i></div>
+          <div class="member"><span class="avatar">SY</span><span><b>苏雨</b><small>15 分钟前</small></span></div>
+          <div class="pinned"><b>置顶的想法</b>让每一个频道都有一个值得反复回看的问题。</div>
+          <div class="action-grid"><button><svg class="icon" viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6"/></svg>频道文件</button><button><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>邀请成员</button><button class="primary">查看频道资料 <span>→</span></button></div>
+        </aside>
+      </div>
+      <section class="bento"><article class="quote-card"><span class="eyebrow">Jchat note</span><h3>把每次交流，都变成下一次灵感的开始。</h3><p>不急着给出答案，先留住有价值的问题。</p></article><article><span class="eyebrow" style="color:var(--lavender)">最近草稿</span><h3>产品讨论</h3><p>“让消息流像一本可翻阅的笔记。”</p><footer><span>今天 10:12</span><span>打开 →</span></footer></article><article><span class="eyebrow" style="color:var(--sage)">频道动态</span><h3>3 位成员在线</h3><p>新频道支持长久保留，也支持随时开始。</p><footer><span>频道1</span><span>查看 →</span></footer></article></section>
+    </section>
+
+    <section class="screen" id="auth"><div class="auth-layout"><section class="auth-art card"><span class="eyebrow">Jchat atelier</span><h1>把一段新的对话，<br>放进温柔的空间里。</h1><p>从一个账号开始，建立属于你和朋友们的轻盈交流场所。</p><div class="auth-note"><b>✦ 一点提示</b>好的交流不需要复杂，只需要一个值得停留的地方。</div></section><section class="auth-form card"><button class="brand"><strong>Jchat<b>+</b></strong></button><h2>欢迎回来</h2><p>继续你上一次没有说完的想法。</p><div class="field"><label>用户名</label><input placeholder="输入你的用户名"></div><div class="field"><label>密码</label><input type="password" placeholder="输入你的密码"></div><button class="auth-submit">进入 Jchat <span>→</span></button><footer>还没有账号？ <a href="#">创建一个</a></footer></section></div></section>
+
+    <section class="screen" id="admin"><div class="admin-layout"><aside class="admin-nav card"><button class="brand"><strong>Jchat<b>+</b></strong></button><p class="eyebrow" style="margin:0 7px 8px">管理工作台</p><button class="admin-link active"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19V5h16v14z"/><path d="M8 15v-4M12 15V8M16 15v-7"/></svg>概览</button><button class="admin-link"><svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.8-3.5 2.8-5 6-5s5.2 1.5 6 5M16 11l2 2 3-4"/></svg>用户与权限</button><button class="admin-link"><svg class="icon" viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>频道记录</button><button class="admin-link"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg>系统设置</button></aside><section class="admin-main card"><header><div><span class="eyebrow">管理概览</span><h1>今天的 Jchat</h1><p>让社区保持清晰、安静且值得参与。</p></div><button class="admin-primary">导出本周摘要 →</button></header><div class="stats"><article class="stat"><span>活跃成员</span><b>24</b><em>↗ 本周 +12%</em></article><article class="stat"><span>新建频道</span><b>3</b><em>↗ 比上周多 1 个</em></article><article class="stat"><span>待处理事项</span><b>02</b><em style="color:var(--coral-deep)">需要你的关注</em></article></div><div class="admin-grid"><article class="table-card card"><span class="eyebrow">成员状态</span><h2>最近加入的成员</h2><table><thead><tr><th>成员</th><th>加入时间</th><th>状态</th></tr></thead><tbody><tr><td><b>赵青</b></td><td>今天 09:24</td><td><span class="tag">已验证</span></td></tr><tr><td><b>林一</b></td><td>昨天 16:10</td><td><span class="tag">已验证</span></td></tr><tr><td><b>苏雨</b></td><td>昨天 11:42</td><td><span class="tag">已验证</span></td></tr></tbody></table></article><article class="insight-card card"><span class="eyebrow" style="color:var(--lavender)">轻量动态</span><h2>正在发生</h2><div class="activity"><i></i><span><b>频道1 有新的讨论</b><small>林一分享了一个草稿 · 3 分钟前</small></span></div><div class="activity"><i style="background:var(--lavender);box-shadow:0 0 0 4px var(--lavender-wash)"></i><span><b>新成员已加入</b><small>赵青完成了个人资料 · 28 分钟前</small></span></div><div class="activity"><i style="background:var(--sage);box-shadow:0 0 0 4px var(--sage-wash)"></i><span><b>所有系统运行正常</b><small>最后检查于今天 10:30</small></span></div></article></div></section></div></section>
+  </main>
+  <script>
+    const buttons = document.querySelectorAll('[data-screen]');
+    buttons.forEach(button => button.addEventListener('click', () => {
+      const target = button.dataset.screen;
+      document.querySelectorAll('.screen').forEach(screen => screen.classList.toggle('active', screen.id === target));
+      document.querySelectorAll('.nav button').forEach(nav => nav.classList.toggle('active', nav.dataset.screen === target));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
+  </script>
+</body>
+</html>

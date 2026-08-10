@@ -1,0 +1,25 @@
+# Dependencies and local environment
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Runtime data and credentials
+server/data/*
+!server/data/.gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Local services, browser automation, and generated previews
+.playwright-cli/
+output/
+.superpowers/
+server/logs/
+*.log
+*.err
+*.err.log
+
+# Local visual QA captures
+*-desktop-*.png
+*-register-*.png
+*-login-*.png
