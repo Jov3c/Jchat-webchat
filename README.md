@@ -4,6 +4,8 @@ Jchat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应用，包
 
 > 当前版本：`v2.2.0`。运行时使用 Node.js 24 LTS（`>=24 <25`）与 npm 11。
 
+本轮安全、依赖与部署优化详见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 页面预览
 
 ### 聊天界面
