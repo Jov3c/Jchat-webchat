@@ -34,9 +34,6 @@ function resolveSocketUrl() {
     if (configuredPort !== undefined && configuredPort !== null && String(configuredPort).trim()) {
         return `${window.location.protocol}//${window.location.hostname}:${String(configuredPort).trim()}`;
     }
-    if (window.location.port === '3001') {
-        return `${window.location.protocol}//${window.location.hostname}:3000`;
-    }
     return window.location.origin;
 }
 

@@ -67,6 +67,87 @@ test('legacy admin credentials migrate to a bcrypt hash and password changes per
     assert.doesNotMatch(fs.readFileSync(credentialsFile, 'utf8'), /new-admin-pass-456/);
 });
 
+test('reset-data restores the local default administrator credentials for the next deployment', async (t) => {
+    const projectRoot = path.join(__dirname, '..');
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jchat-reset-admin-'));
+    const credentialsFile = path.join(tempDir, 'admin_credentials.json');
+    const uploadsDir = path.join(tempDir, 'uploads');
+    fs.mkdirSync(uploadsDir);
+    fs.writeFileSync(path.join(uploadsDir, '.gitkeep'), '');
+    fs.writeFileSync(path.join(uploadsDir, 'old-upload.png'), 'old upload');
+    fs.writeFileSync(credentialsFile, JSON.stringify({ username: 'admin', passwordHash: await bcrypt.hash('old-admin-password-123', 12) }));
+    const env = {
+        ...process.env,
+        JCHAT_DB_FILE: path.join(tempDir, 'jchat.sqlite'),
+        JCHAT_ADMIN_CREDENTIALS_FILE: credentialsFile,
+        JCHAT_UPLOADS_DIR: uploadsDir,
+        ADMIN_PASSWORD: ''
+    };
+    const reset = spawn(process.execPath, ['scripts/reset-data.js'], { cwd: projectRoot, env, stdio: 'ignore' });
+    const [resetCode] = await once(reset, 'exit');
+    assert.equal(resetCode, 0);
+
+    const resetCredentials = JSON.parse(fs.readFileSync(credentialsFile, 'utf8'));
+    assert.deepEqual(Object.keys(resetCredentials).sort(), ['passwordHash', 'username']);
+    assert.equal(resetCredentials.username, 'admin');
+    assert.equal(await bcrypt.compare('admin123', resetCredentials.passwordHash), true);
+    assert.doesNotMatch(fs.readFileSync(credentialsFile, 'utf8'), /admin123/);
+    assert.equal(fs.existsSync(path.join(uploadsDir, '.gitkeep')), true);
+    assert.equal(fs.existsSync(path.join(uploadsDir, 'old-upload.png')), false);
+
+    const port = await getFreePort();
+    const child = spawn(process.execPath, ['index.js'], { cwd: projectRoot, env: { ...env, PORT: String(port) }, stdio: 'ignore' });
+    t.after(async () => {
+        if (child.exitCode === null) { child.kill(); await once(child, 'exit'); }
+        fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    });
+    const baseUrl = `http://127.0.0.1:${port}`;
+    await waitForServer(`${baseUrl}/api/version`);
+    const login = await fetch(`${baseUrl}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'admin123' })
+    });
+    assert.equal(login.status, 200);
+});
+
+test('a first local deployment provisions an administrator for both login surfaces', async (t) => {
+    const projectRoot = path.join(__dirname, '..');
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jchat-first-admin-'));
+    const credentialsFile = path.join(tempDir, 'admin_credentials.json');
+    const port = await getFreePort();
+    const child = spawn(process.execPath, ['index.js'], {
+        cwd: projectRoot,
+        env: {
+            ...process.env,
+            PORT: String(port),
+            JCHAT_DB_FILE: path.join(tempDir, 'jchat.sqlite'),
+            JCHAT_ADMIN_CREDENTIALS_FILE: credentialsFile,
+            ADMIN_PASSWORD: ''
+        },
+        stdio: 'ignore'
+    });
+    t.after(async () => {
+        if (child.exitCode === null) { child.kill(); await once(child, 'exit'); }
+        fs.rmSync(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    });
+
+    const baseUrl = `http://127.0.0.1:${port}`;
+    await waitForServer(`${baseUrl}/api/version`);
+    const credentials = JSON.parse(fs.readFileSync(credentialsFile, 'utf8'));
+    assert.equal(credentials.username, 'admin');
+    assert.equal(await bcrypt.compare('admin123', credentials.passwordHash), true);
+
+    for (const endpoint of ['/api/login', '/api/admin/login']) {
+        const login = await fetch(`${baseUrl}${endpoint}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ username: 'admin', password: 'admin123' })
+        });
+        assert.equal(login.status, 200, `${endpoint} accepts the first-deployment administrator`);
+    }
+});
+
 test('production refuses the default JWT secret before serving requests', async () => {
     const projectRoot = path.join(__dirname, '..');
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jchat-production-jwt-'));

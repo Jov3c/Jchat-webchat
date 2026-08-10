@@ -44,10 +44,9 @@ function isAllowedOrigin(origin) {
     if (configured.includes(origin)) return true;
     const host = url.hostname.toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
-    const frontendPort = String(process.env.FRONTEND_PORT || 3001);
     const apiPort = String(PORT);
     const port = url.port || (url.protocol === 'https:' ? '443' : '80');
-    if (port !== frontendPort && port !== apiPort) return false;
+    if (port !== apiPort) return false;
     const octets = host.split('.').map(Number);
     return octets.length === 4 && octets.every(Number.isInteger) && (
         octets[0] === 10 ||
@@ -240,6 +239,25 @@ function saveAdminCredentials() {
 }
 
 const ADMIN_CREDENTIALS = loadAdminCredentials();
+
+function ensureAdministratorUser() {
+    const existing = db.getUserByUsername(ADMIN_CREDENTIALS.username);
+    if (existing) {
+        if (existing.password !== ADMIN_CREDENTIALS.passwordHash) {
+            db.updateUser(existing.id, { password: ADMIN_CREDENTIALS.passwordHash });
+        }
+        return existing;
+    }
+    return db.insertUser({
+        username: ADMIN_CREDENTIALS.username,
+        password: ADMIN_CREDENTIALS.passwordHash,
+        email: null,
+        nickname: '管理员'
+    });
+}
+
+ensureAdministratorUser();
+
 if (process.env.JCHAT_TRUST_PROXY) {
     app.set('trust proxy', process.env.JCHAT_TRUST_PROXY === 'true' ? true : process.env.JCHAT_TRUST_PROXY);
 }
@@ -610,6 +628,7 @@ app.put('/api/admin/password', authenticateAdmin, async (req, res) => {
         ADMIN_CREDENTIALS.passwordHash = previousHash;
         return res.status(500).json({ error: 'Could not save admin password' });
     }
+    ensureAdministratorUser();
     res.json({ success: true, message: 'Admin password updated successfully' });
 });
 
@@ -1850,12 +1869,13 @@ server.listen(PORT, '0.0.0.0', () => {
     }, 60 * 1000);
 });
 
-if (process.env.SERVE_FRONTEND === '1' || process.env.SERVE_FRONTEND === 'true') {
-    app.use(express.static(path.join(__dirname, 'public')));
-} else {
-    app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
-    app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
-}
+const PUBLIC_DIR = path.join(__dirname, 'public');
+app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'login.html')));
+app.get('/register', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'register.html')));
+app.get(['/admin', '/jchat/admin'], (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin.html')));
+app.get(['/admin/login', '/jchat/admin/login'], (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin-login.html')));
+app.use(express.static(PUBLIC_DIR));
 
 process.on('SIGINT', () => {
     console.log('Server shutting down...');

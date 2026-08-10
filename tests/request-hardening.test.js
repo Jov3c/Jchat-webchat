@@ -57,6 +57,18 @@ test('request hardening limits bodies and abusive login attempts while allowing 
     const baseUrl = `http://127.0.0.1:${port}`;
     await waitForServer(`${baseUrl}/api/version`);
 
+    for (const [route, expectedText] of [
+        ['/', '<title>Jchat'],
+        ['/login', '<form'],
+        ['/register', '<form'],
+        ['/admin', '<title>'],
+        ['/admin/login', '<form']
+    ]) {
+        const page = await fetch(`${baseUrl}${route}`);
+        assert.equal(page.status, 200, `${route} is served by the API process`);
+        assert.match(await page.text(), new RegExp(expectedText, 'i'));
+    }
+
     const headers = await fetch(`${baseUrl}/api/version`);
     assert.equal(headers.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(headers.headers.get('x-frame-options'), 'SAMEORIGIN');
@@ -66,9 +78,9 @@ test('request hardening limits bodies and abusive login attempts while allowing 
     const rejected = await fetch(`${baseUrl}/api/version`, { headers: { origin: 'https://untrusted.example' } });
     assert.equal(rejected.headers.get('access-control-allow-origin'), null);
     assert.equal(rejected.status, 403);
-    const lanFrontend = await fetch(`${baseUrl}/api/version`, { headers: { origin: 'http://192.168.1.20:3001' } });
-    assert.equal(lanFrontend.status, 200);
-    const lanWrongPort = await fetch(`${baseUrl}/api/version`, { headers: { origin: 'http://192.168.1.20:3002' } });
+    const lanApi = await fetch(`${baseUrl}/api/version`, { headers: { origin: `http://192.168.1.20:${port}` } });
+    assert.equal(lanApi.status, 200);
+    const lanWrongPort = await fetch(`${baseUrl}/api/version`, { headers: { origin: 'http://192.168.1.20:3001' } });
     assert.equal(lanWrongPort.status, 403);
 
     const tooLarge = await fetch(`${baseUrl}/api/login`, {
@@ -94,15 +106,26 @@ test('request hardening limits bodies and abusive login attempts while allowing 
     assert.equal(throttled.status, 429);
 });
 
-test('browser Socket.IO resolves API_ORIGIN, development proxy, and same-origin deployments', () => {
+test('package scripts expose a single-service startup only', () => {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    assert.equal(packageJson.scripts.start, 'node index.js');
+    assert.equal(packageJson.scripts.dev, 'nodemon index.js');
+    assert.equal(packageJson.scripts['start-all'], undefined);
+    assert.equal(packageJson.scripts.frontend, undefined);
+    assert.equal(packageJson.scripts['dev-frontend'], undefined);
+    assert.equal(packageJson.dependencies['express-http-proxy'], undefined);
+    assert.equal(packageJson.devDependencies.concurrently, undefined);
+});
+
+test('browser Socket.IO defaults to the page origin for a single-service deployment', () => {
     const chatJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'chat.js'), 'utf8');
     const match = chatJs.match(/function resolveSocketUrl\(\) \{[\s\S]*?\n\}/);
     assert.ok(match, 'chat.js exposes a dedicated Socket.IO URL resolver');
     const resolve = (location, API_ORIGIN, JCHAT_API_PORT) => vm.runInNewContext(`${match[0]}; resolveSocketUrl()`, {
         window: { location, API_ORIGIN, JCHAT_API_PORT }
     });
-    assert.equal(resolve({ protocol: 'http:', hostname: 'localhost', port: '3001', origin: 'http://localhost:3001' }), 'http://localhost:3000');
-    assert.equal(resolve({ protocol: 'http:', hostname: '192.168.1.20', port: '3001', origin: 'http://192.168.1.20:3001' }), 'http://192.168.1.20:3000');
+    assert.equal(resolve({ protocol: 'http:', hostname: 'localhost', port: '3001', origin: 'http://localhost:3001' }), 'http://localhost:3001');
+    assert.equal(resolve({ protocol: 'http:', hostname: '192.168.1.20', port: '3001', origin: 'http://192.168.1.20:3001' }), 'http://192.168.1.20:3001');
     assert.equal(resolve({ protocol: 'https:', hostname: 'chat.example', port: '', origin: 'https://chat.example' }), 'https://chat.example');
     assert.equal(resolve({ protocol: 'https:', hostname: 'chat.example', port: '', origin: 'https://chat.example' }, 'https://api.example'), 'https://api.example');
 });

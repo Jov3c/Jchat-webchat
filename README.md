@@ -44,12 +44,12 @@ Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应�
 
 ```bash
 git clone https://github.com/Jov3c/Jchat.git
-cd Jchat
+cd Jchat-JoyChat
 npm install
-npm run start-all
+npm start
 ```
 
-默认地址：聊天页面 `http://localhost:3001`、管理后台 `http://localhost:3001/admin`、API/Socket.IO `http://localhost:3000`。前端服务会将 `/api` 代理到 API 服务。
+Jchat-JoyChat 使用单一 Node.js 服务：聊天页面、登录、后台、API 和 Socket.IO 都由 `http://localhost:3000` 提供。后台地址为 `http://localhost:3000/admin`。
 
 > `.env.example` 只是模板。项目读取的是**启动进程环境变量**，不会自动加载 `.env`；请使用 shell、服务管理器、容器编排或受控的环境加载器注入配置。
 
@@ -58,9 +58,7 @@ npm run start-all
 | 变量 | 代码默认值 | 说明 |
 | --- | --- | --- |
 | `NODE_ENV` | 未设置 | 生产部署必须为 `production`。 |
-| `PORT` | `3000` | API 与 Socket.IO 端口。 |
-| `FRONTEND_PORT` | `3001` | 前端代理端口。 |
-| `SERVE_FRONTEND` | `false` | 设为 `1` 或 `true` 时 API 服务也托管前端静态文件。 |
+| `PORT` | `3000` | 网页、API 与 Socket.IO 统一服务端口。 |
 | `JWT_SECRET` | 开发占位符 | 生产环境必须是至少 32 字符的非默认密钥。 |
 | `JWT_EXPIRES_IN` | `30d` | JWT 有效期。 |
 | `DM_ENCRYPTION_KEY` | 开发回退（非生产） | 64 位 hex，或至少 32 UTF-8 字节的高强度字符串；生产环境必填。 |
@@ -68,6 +66,7 @@ npm run start-all
 | `ADMIN_PASSWORD` | `admin123`（仅本地回退） | 首次初始化的管理员密码；生产环境至少 12 字符且不能是默认值。 |
 | `JCHAT_ADMIN_CREDENTIALS_FILE` | `server/data/admin_credentials.json` | 管理员 bcrypt 凭据文件路径。 |
 | `JCHAT_DB_FILE` | `server/data/jchat.sqlite` | SQLite 数据库路径。 |
+| `JCHAT_UPLOADS_DIR` | `public/uploads/` | 仅 `npm run reset-data` 使用的上传目录覆盖项。 |
 | `JCHAT_ALLOWED_ORIGINS` | 空 | 逗号分隔的精确 CORS 来源；生产环境请仅配置 HTTPS 域名。 |
 | `JCHAT_TRUST_PROXY` | 未设置 | 仅部署在受信任反向代理后设置；可为 `true` 或 Express trust-proxy 值。 |
 | `JCHAT_JSON_LIMIT` | `1mb` | JSON 请求体上限。 |
@@ -94,17 +93,15 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### 浏览器 API/Socket 配置
 
-`API_ORIGIN` 和 `JCHAT_API_PORT` 是浏览器全局配置，而不是服务端环境变量。页面加载前可注入：
+单服务部署不需要浏览器端地址配置；页面会自动使用当前地址的 API 和 Socket.IO。只有将页面部署到独立域名时，才需要在页面加载前设置 `API_ORIGIN`：
 
 ```html
 <script>
   window.API_ORIGIN = 'https://api.example.com';
-  /* 仅在 API 使用独立端口时显式设置；同源反向代理无需设置。 */
-  window.JCHAT_API_PORT = '3000';
 </script>
 ```
 
-地址解析顺序为 `API_ORIGIN`、显式 `JCHAT_API_PORT`、本地 `3001 → 3000` 开发端口推导，最后回退到页面同源。反向代理同源部署时通常无需设置这两个浏览器全局值。
+未设置 `API_ORIGIN` 时，浏览器始终使用页面同源地址。
 
 ## 生产部署安全清单
 
@@ -121,16 +118,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## 常用命令
 
 ```bash
-npm run start-all    # 同时启动 API 和前端服务
-npm start            # 仅启动 API 和 Socket.IO
-npm run frontend     # 仅启动前端代理
-npm run dev          # 监听并重启 API
-npm run dev-frontend # 监听并重启前端代理
+npm start            # 启动网页、API 和 Socket.IO
+npm run dev          # 监听并重启单一服务
 npm test             # 运行自动化测试
 npm run reset-data   # 清空运行数据并恢复本地默认管理员
 ```
 
-`reset-data` 会删除用户、频道、消息、好友关系和上传内容。运行前请先备份需要保留的数据。
+`reset-data` 会删除用户、频道、消息、好友关系和用户上传内容，同时将普通登录和后台登录的管理员账号统一恢复为 `admin/admin123`（开发环境）。运行前请先备份需要保留的数据。
 
 ## 项目结构
 
@@ -141,7 +135,7 @@ Jchat/
 │   └── js/
 ├── server/              # SQLite、会话、加密、日志与校验模块
 │   └── data/            # 运行时数据库与管理员凭据（不提交到 Git）
-├── scripts/             # 前端代理与数据重置脚本
+├── scripts/             # 数据重置脚本
 ├── tests/               # 自动化测试
 ├── docs/images/         # README 预览图
 ├── index.js             # API 与 Socket.IO 入口

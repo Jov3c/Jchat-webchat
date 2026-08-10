@@ -4,6 +4,13 @@
 
 ## [2.2.0] - 2026-08-10
 
+### 单服务与首次登录
+
+- 网页、API 和 Socket.IO 合并为单一 Node.js 服务，默认只使用 `http://localhost:3000`。
+- 将登录、注册和后台页面路由纳入 API 服务；移除独立前端代理、`start-all` 命令及其依赖。
+- 首次本地部署会创建可同时用于聊天登录和后台登录的 `admin/admin123` 管理员账号。
+- `npm run reset-data` 会同步重建 SQLite 管理员用户与 bcrypt 凭据文件，并保留上传目录的 `.gitkeep` 占位文件。
+
 ### 安全加固
 
 - 上传头像、图片、语音和表情包前强制校验 JWT，不再信任客户端提交的 `userId`。
@@ -22,7 +29,7 @@
 
 - 运行环境统一为 Node.js 24 LTS 与 npm 11，并新增 `.nvmrc`。
 - 升级 `bcrypt` 至 6.0.0、`multer` 至 2.2.0、`sharp` 至 0.35.3、`socket.io` 至 4.8.3。
-- 升级 Express 4、安全相关传递依赖、Concurrently 和 Nodemon。
+- 升级 Express 4、安全相关传递依赖和 Nodemon。
 - 生产依赖漏洞由 14 个降至 3 个，Critical 漏洞由 3 个降至 0。
 
 ### 部署与维护
