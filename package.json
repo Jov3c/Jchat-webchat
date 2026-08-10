@@ -1,7 +1,7 @@
 {
-  "name": "jchat",
+  "name": "jchat-joychat",
   "version": "2.2.0",
-  "description": "A lightweight real-time chat application built with Node.js, Socket.IO and SQLite.",
+  "description": "Jchat-JoyChat: a lightweight real-time chat application built with Node.js, Socket.IO and SQLite.",
   "main": "index.js",
   "engines": {
     "node": ">=24 <25"

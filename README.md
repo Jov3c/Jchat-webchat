@@ -1,6 +1,6 @@
 # Jchat-JoyChat
 
-Jchat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应用，包含公共和私有频道、好友私聊、在线状态、媒体消息与管理后台。
+Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应用，包含公共和私有频道、好友私聊、在线状态、媒体消息与管理后台。
 
 > 当前版本：`v2.2.0`。运行时使用 Node.js 24 LTS（`>=24 <25`）与 npm 11。
 
