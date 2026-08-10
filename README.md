@@ -1,4 +1,4 @@
-# Jchat
+# Jchat-JoyChat
 
 一个轻量、完整的实时聊天应用。Jchat 使用 Node.js、Socket.IO 与 SQLite 构建，包含公共频道、受邀可见的私有频道、好友私聊、在线状态、表情包和统一的后台管理页面。
 
