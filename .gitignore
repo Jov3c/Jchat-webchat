@@ -13,7 +13,6 @@ public/uploads/*
 # Local services, browser automation, and generated previews
 .playwright-cli/
 output/
-.superpowers/
 server/logs/
 *.log
 *.err
