@@ -2,7 +2,8 @@ import { getToken } from '../stores/auth.js';
 
 async function request(method, path, body) {
   const headers = { 'Content-Type': 'application/json' };
-  const token = getToken();
+  const isAdmin = path.startsWith('/api/admin');
+  const token = isAdmin ? sessionStorage.getItem('admin_token') : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(path, {
     method,
