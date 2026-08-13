@@ -39,7 +39,7 @@ async function submit() {
 <style scoped>
 .auth-wrap { height: 100vh; display: grid; place-items: center; background: var(--bg); }
 .card { display: flex; flex-direction: column; gap: 14px; width: 320px; padding: 32px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
-.card h1 { font-size: 24px; text-align: center; }
+.card h1 { font-family: var(--font-display); font-size: 28px; font-weight: 600; text-align: center; letter-spacing: 0.2px; }
 .sub { text-align: center; color: var(--muted); }
 input { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
 .primary { padding: 10px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; font-weight: 600; }

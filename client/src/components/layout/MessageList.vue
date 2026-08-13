@@ -48,6 +48,6 @@ socket.on('messageRecalled', ({ messageId }) => {
 </script>
 
 <style scoped>
-.messages { flex: 1; overflow-y: auto; padding: 16px 0; display: flex; flex-direction: column; }
-.empty { color: var(--muted); text-align: center; margin-top: 40px; }
+.messages { flex: 1; overflow-y: auto; padding: 18px 22px 8px; display: flex; flex-direction: column; }
+.empty { color: var(--muted); text-align: center; margin-top: 40px; font-size: 14px; }
 </style>

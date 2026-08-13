@@ -2,45 +2,65 @@
   --bg: #F7F5F0;
   --panel: #FFFFFF;
   --rail: #F2F0EA;
-  --accent: #D97757;
-  --accent-strong: #C05E3F;
+  --hover: #ECE8DF;
+  --active: #F6E6DE;
+  --border: #E7E3D8;
+  --border-strong: #D9D4C6;
   --text: #23211C;
-  --muted: #8A8578;
-  --border: #E8E4DB;
-  --hover: #EDEAE2;
+  --muted: #6F6A5E;
+  --faint: #A8A291;
+  --accent: #D97757;
+  --accent-strong: #C0603F;
+  --accent-soft: #F6E6DE;
+  --accent-ghost: #FBF1EB;
+  --self: #F6EBE4;
   --green: #46A049;
   --red: #E25353;
   --yellow: #F0B429;
+  --shadow: 0 1px 2px rgba(35, 33, 28, 0.04), 0 10px 30px rgba(35, 33, 28, 0.07);
   --radius: 12px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(35, 33, 28, 0.06);
-  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, "Segoe UI", sans-serif;
+  --font-display: Georgia, "Noto Serif SC", serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1E1C17;
-    --panel: #26231D;
-    --rail: #211F1A;
-    --accent: #E08A6B;
-    --accent-strong: #EA9C7E;
-    --text: #F0EDE6;
-    --muted: #A8A296;
-    --border: #37342C;
-    --hover: #2E2B24;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --bg: #1B1A17;
+    --panel: #242320;
+    --rail: #1F1E1B;
+    --hover: #2D2B26;
+    --active: #3A2C24;
+    --border: #35322B;
+    --border-strong: #464239;
+    --text: #EDEAE3;
+    --muted: #A6A093;
+    --faint: #6E6A5E;
+    --accent: #E08B67;
+    --accent-strong: #E99A78;
+    --accent-soft: #3A2C24;
+    --accent-ghost: #2B2420;
+    --self: #342A24;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #1E1C17;
-  --panel: #26231D;
-  --rail: #211F1A;
-  --accent: #E08A6B;
-  --accent-strong: #EA9C7E;
-  --text: #F0EDE6;
-  --muted: #A8A296;
-  --border: #37342C;
-  --hover: #2E2B24;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --bg: #1B1A17;
+  --panel: #242320;
+  --rail: #1F1E1B;
+  --hover: #2D2B26;
+  --active: #3A2C24;
+  --border: #35322B;
+  --border-strong: #464239;
+  --text: #EDEAE3;
+  --muted: #A6A093;
+  --faint: #6E6A5E;
+  --accent: #E08B67;
+  --accent-strong: #E99A78;
+  --accent-soft: #3A2C24;
+  --accent-ghost: #2B2420;
+  --self: #342A24;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
