@@ -1870,12 +1870,12 @@ server.listen(PORT, '0.0.0.0', () => {
 });
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
-app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
-app.get('/login', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'login.html')));
-app.get('/register', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'register.html')));
-app.get(['/admin', '/jchat/admin'], (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin.html')));
-app.get(['/admin/login', '/jchat/admin/login'], (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin-login.html')));
-app.use(express.static(PUBLIC_DIR));
+const DIST_DIR = path.join(__dirname, 'client', 'dist');
+app.use('/uploads', express.static(path.join(PUBLIC_DIR, 'uploads')));
+app.use('/images', express.static(path.join(PUBLIC_DIR, 'images')));
+app.use('/videos', express.static(path.join(PUBLIC_DIR, 'videos')));
+app.use(express.static(DIST_DIR));
+app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));
 
 process.on('SIGINT', () => {
     console.log('Server shutting down...');
