@@ -14,6 +14,6 @@ defineProps({ presence: { type: String, default: 'offline' } });
 .presence-away { background: var(--yellow); }
 .presence-busy { background: var(--red); }
 .presence-busy::before {
-  content: ''; position: absolute; inset: 5px 2px; background: #fff; border-radius: 2px;
+  content: ''; position: absolute; left: 2px; right: 2px; top: 50%; height: 2px; transform: translateY(-50%); background: #fff; border-radius: 1px;
 }
 </style>
