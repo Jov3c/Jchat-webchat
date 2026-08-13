@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node --check index.js
+      - run: node --check scripts/reset-data.js
+      - run: node --check public/js/chat.js
+      - run: npm test
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical

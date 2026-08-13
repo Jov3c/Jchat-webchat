@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员登录 - Jchat 管理后台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/jchat-design-system.css">
+    <style>
+        :root {
+            --admin-bg: var(--jc-canvas);
+            --admin-card: var(--jc-glass);
+            --admin-border: var(--jc-glass-border);
+            --admin-text: var(--jc-ink);
+            --admin-muted: #68645e;
+            --admin-text-secondary: var(--admin-muted);
+            --admin-primary: #35342f;
+            --admin-primary-hover: var(--jc-primary-hover);
+            --admin-danger: var(--jc-danger);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            position: relative;
+            overflow-x: hidden;
+            overflow-y: auto;
+            font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background:
+                radial-gradient(circle at 18% 18%, rgba(255, 255, 255, .84), transparent 35%),
+                radial-gradient(circle at 82% 75%, rgba(218, 207, 190, .48), transparent 38%),
+                var(--admin-bg);
+            color: var(--admin-text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .login-card {
+            position: relative;
+            margin-block: auto;
+            width: 100%;
+            max-width: 400px;
+            background: var(--admin-card);
+            border-radius: var(--jc-radius-lg);
+            padding: 40px;
+            border: 1px solid var(--admin-border);
+        }
+        .login-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 20px;
+            color: var(--admin-text-secondary);
+            font-size: 12px;
+            font-weight: 650;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .login-eyebrow .jc-icon { width: 16px; height: 16px; }
+        .login-title {
+            font-family: Georgia, "Songti SC", serif;
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--admin-text);
+            margin-bottom: 8px;
+            letter-spacing: -0.035em;
+        }
+        .login-subtitle {
+            font-size: 14px;
+            color: var(--admin-text-secondary);
+            margin-bottom: 28px;
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--admin-text-secondary);
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--admin-border);
+            border-radius: var(--jc-radius-sm);
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--admin-text);
+            background: rgba(255, 254, 251, .68);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--jc-focus);
+            box-shadow: 0 0 0 3px rgba(130, 111, 82, .14);
+        }
+        .form-group input::placeholder { color: var(--admin-text-secondary); }
+        .error-message {
+            font-size: 13px;
+            color: var(--admin-danger);
+            margin-bottom: 16px;
+            min-height: 20px;
+        }
+        .btn-primary {
+            width: 100%;
+            min-height: 44px;
+            padding: 12px;
+            background: var(--admin-primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--jc-radius-sm);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background var(--jc-motion-fast), transform var(--jc-motion-fast);
+        }
+        .btn-primary:hover { background: var(--admin-primary-hover); }
+        .btn-primary:active { transform: translateY(1px); }
+        .btn-primary:focus-visible, .back-link:focus-visible { outline: 2px solid var(--jc-focus); outline-offset: 3px; }
+        .back-link {
+            display: block;
+            min-height: 44px;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--admin-text-secondary);
+            text-decoration: none;
+        }
+        .back-link:hover { color: var(--admin-primary); }
+        .back-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .back-link .jc-icon { width: 15px; height: 15px; }
+        @media (max-width: 520px) {
+            body { padding: 12px; }
+            .login-card { padding: 30px 24px; border-radius: var(--jc-radius-xl); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .btn-primary,
+            .back-link,
+            .login-card {
+                transform: none !important;
+                transition-property: color, background-color, border-color, box-shadow, opacity !important;
+            }
+        }
+        @media (prefers-reduced-transparency: reduce) {
+            body { background: var(--jc-canvas); }
+            .login-card {
+                background: #f8f6f1;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
+            }
+            .form-group input { background: #fffdfa; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/anatomy-account-admin.css">
+</head>
+<body class="anatomy-account-page anatomy-admin-login-page">
+    <main class="anatomy-page-shell">
+        <header class="anatomy-account-topbar">
+            <a class="anatomy-brand-link" href="/index.html" aria-label="返回 Jchat">
+                <span class="anatomy-wordmark">Jchat<span>+</span></span>
+            </a>
+            <p>Management atelier</p>
+        </header>
+        <div class="anatomy-auth-layout" data-anatomy-region="auth-layout">
+            <section class="anatomy-auth-art anatomy-admin-auth-art anatomy-paper-card" data-anatomy-region="auth-art" aria-label="Jchat 管理工作台介绍">
+                <div class="anatomy-auth-orbit" aria-hidden="true"></div>
+                <div class="auth-visual-copy">
+                    <p class="auth-kicker">Quiet stewardship</p>
+                    <h1>让社区保持清晰，<br>也保持值得参与。</h1>
+                    <p>管理不是制造更多噪声，而是在需要时给秩序、成员与内容一个可靠的回应。</p>
+                    <aside class="anatomy-auth-note"><strong>管理手记</strong>每一次操作都应当清楚、克制，并且可以被理解。</aside>
+                </div>
+            </section>
+            <form class="login-card jc-glass anatomy-auth-form anatomy-paper-card" data-anatomy-region="auth-form" id="adminLoginForm">
+                <span class="anatomy-form-wordmark" aria-hidden="true">Jchat<span>+</span></span>
+                <div class="login-eyebrow"><span data-jchat-icon="shield" aria-hidden="true"></span>安全入口</div>
+                <h1 class="login-title">管理员登录</h1>
+                <p class="login-subtitle">进入 Jchat 管理工作台</p>
+                <div class="error-message" id="errorMessage" role="alert" aria-live="polite"></div>
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" placeholder="请输入管理员用户名" autocomplete="username" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" placeholder="请输入管理员密码" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="btn-primary" id="loginBtn">登录</button>
+                <a href="/index.html" class="back-link" aria-label="返回聊天页面"><span data-jchat-icon="arrowLeft" aria-hidden="true"></span>返回聊天页面</a>
+            </form>
+        </div>
+    </main>
+    <script src="/js/jchat-ui.js"></script>
+    <script src="/js/admin-auth.js"></script>
+</body>
+</html>

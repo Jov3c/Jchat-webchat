@@ -1,0 +1,53 @@
+{
+  "name": "jchat-joychat",
+  "version": "2.2.0",
+  "description": "Jchat-JoyChat: a lightweight real-time chat application built with Node.js, Socket.IO and SQLite.",
+  "main": "index.js",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "npm@11.9.0",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test tests/*.test.js",
+    "dev": "nodemon index.js",
+    "reset-data": "node scripts/reset-data.js"
+  },
+  "keywords": [
+    "chat",
+    "lan",
+    "socket.io",
+    "express",
+    "responsive"
+  ],
+  "author": "Jov3c",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jov3c/Jchat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jov3c/Jchat/issues"
+  },
+  "homepage": "https://github.com/Jov3c/Jchat#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.22.2",
+    "jsonwebtoken": "^9.0.0",
+    "multer": "^2.2.0",
+    "sharp": "^0.35.3",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "overrides": {
+    "body-parser": "1.20.6",
+    "engine.io": "6.6.7",
+    "path-to-regexp": "0.1.13",
+    "qs": "6.15.3",
+    "socket.io-adapter": "2.5.8",
+    "socket.io-parser": "4.2.7"
+  }
+}
