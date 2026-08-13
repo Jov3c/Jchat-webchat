@@ -58,11 +58,11 @@ test('request hardening limits bodies and abusive login attempts while allowing 
     await waitForServer(`${baseUrl}/api/version`);
 
     for (const [route, expectedText] of [
-        ['/', '<title>Jchat'],
-        ['/login', '<form'],
-        ['/register', '<form'],
-        ['/admin', '<title>'],
-        ['/admin/login', '<form']
+        ['/', '<title>JoyChat'],
+        ['/login', '<title>JoyChat'],
+        ['/register', '<title>JoyChat'],
+        ['/admin', '<title>JoyChat'],
+        ['/admin/login', '<title>JoyChat']
     ]) {
         const page = await fetch(`${baseUrl}${route}`);
         assert.equal(page.status, 200, `${route} is served by the API process`);
