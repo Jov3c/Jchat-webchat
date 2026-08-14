@@ -1,15 +1,17 @@
 <template>
   <div class="rail-right">
-    <div class="rail-head">成员 <span class="count" v-if="members.length">· {{ members.length }}</span></div>
-    <div class="rail-scroll">
-      <div v-if="!members.length" class="empty">暂无成员</div>
-      <div v-for="m in members" :key="m.id" class="member">
-        <span class="avatar-click" @click="goProfile(m.id, $event)">
-          <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="getLivePresence(m.id, m.presence_status)" :size="30" />
-        </span>
-        <span class="name">{{ m.nickname || m.username }}<span v-if="m.id === meId" class="you">你</span></span>
+    <template v-if="channel">
+      <div class="rail-head">成员 <span class="count" v-if="members.length">· {{ members.length }}</span></div>
+      <div class="rail-scroll">
+        <div v-if="!members.length" class="empty">暂无成员</div>
+        <div v-for="m in members" :key="m.id" class="member">
+          <span class="avatar-click" @click="goProfile(m.id, $event)">
+            <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="getLivePresence(m.id, m.presence_status)" :size="30" />
+          </span>
+          <span class="name">{{ m.nickname || m.username }}<span v-if="m.id === meId" class="you">你</span></span>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 

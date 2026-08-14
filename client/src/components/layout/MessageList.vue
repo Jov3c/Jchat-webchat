@@ -75,10 +75,10 @@ function isAtBottom() {
   return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 }
 
-function scrollToBottom() {
+function scrollToBottom(smooth = true) {
   const el = scrollEl.value;
   if (!el) return;
-  el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   showJump.value = false;
 }
 
@@ -144,7 +144,7 @@ async function load() {
   if (firstUnread && messages.value.some(m => m.id === firstUnread)) {
     jumpUnreadId.value = firstUnread;
   }
-  nextTick(() => { scrollToBottom(); atBottom.value = true; });
+  nextTick(() => { scrollToBottom(false); atBottom.value = true; });
 }
 
 function scrollToUnread() {

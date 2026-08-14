@@ -1786,7 +1786,11 @@ io.on('connection', (socket) => {
                 }
             }, 24 * 60 * 60 * 1000);
         } else {
-            io.to(channel).emit('messageReceived', messageData);
+            // 广播到各成员的 user 房间，保证不在该频道的人也能收到未读提示
+            const memberIds = isPrivateChannel(channel)
+                ? (db.channels[channel]?.members || [])
+                : db.getUsers().map(u => u.id);
+            for (const id of memberIds) io.to('user:' + id).emit('messageReceived', messageData);
         }
     });
 
