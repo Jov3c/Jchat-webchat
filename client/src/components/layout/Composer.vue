@@ -47,6 +47,8 @@ const placeholder = computed(() => {
 
 async function send() {
   const value = text.value.trim(); if (!value) return;
+  text.value = '';
+  emit('clear-reply');
   const socket = getSocket();
   const reply_to = props.replyTo?.id ?? undefined;
   if (props.peerId != null) {
@@ -60,8 +62,6 @@ async function send() {
   } else if (props.channel) {
     socket.emit('sendMessage', { channel: props.channel, content: value, reply_to });
   }
-  text.value = '';
-  emit('clear-reply');
 }
 </script>
 
