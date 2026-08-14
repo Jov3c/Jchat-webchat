@@ -331,7 +331,10 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal(invitedPresencePayload.channel, privateChannel);
         assert.equal(Number.isInteger(invitedPresencePayload.onlineCount), true);
         assert.equal(invitation.response.status, 200);
-        assert.deepEqual(invitation.body, {
+        assert.deepEqual({
+            ...invitation.body,
+            members: invitation.body.members.map(m => ({ id: m.id, username: m.username }))
+        }, {
             success: true,
             invited: [{ id: invited.userId, username: 'inviteduser' }],
             notFound: ['INVITEDUSER', 'missing-user'],
@@ -376,7 +379,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
 
         const listing = await requestJson(`${baseUrl}/api/channel/${privatePath}/members`, authOptions(owner.token));
         assert.equal(listing.response.status, 200);
-        assert.deepEqual(listing.body.members, [
+        assert.deepEqual(listing.body.members.map(m => ({ id: m.id, username: m.username })), [
             { id: owner.userId, username: 'channelowner' },
             { id: invited.userId, username: 'inviteduser' }
         ]);

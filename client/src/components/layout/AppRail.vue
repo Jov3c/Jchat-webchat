@@ -2,53 +2,43 @@
   <nav class="rail" :class="{ collapsed, open }">
     <div class="brand">
       <div class="brand-mark" @click="expand" title="展开侧边栏">J</div>
-      <div v-if="!collapsed" class="brand-text">
+      <div class="brand-text">
         <div class="brand-name">JoyChat</div>
         <div class="brand-sub">团队协作 · 端到端加密</div>
       </div>
-      <button v-if="!collapsed" class="collapse-btn" @click="collapse" aria-label="收起侧边栏">
+      <button class="collapse-btn" @click="collapse" aria-label="收起侧边栏">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
-      <button v-if="collapsed" class="collapsed-search" @click="expand" aria-label="搜索">
+      <button class="collapsed-search" @click="expand" aria-label="搜索">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       </button>
     </div>
 
-    <div v-if="!collapsed" class="search">
+    <div class="search">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       搜索消息或频道
     </div>
 
     <div class="rail-scroll">
-      <template v-if="!collapsed">
-        <div class="section-label">频道</div>
-        <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)">
-          <span class="hash">#</span><span class="label">{{ c }}</span>
-        </div>
-        <div class="section-label">私聊</div>
-        <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)">
-          <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="f.presence_status" />
-          <span class="name">{{ f.nickname || f.username }}</span>
-        </div>
-      </template>
-      <template v-else>
-        <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" title="#{{ c }}">
-          <span class="hash">#</span>
-        </div>
-        <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
-          <Avatar :name="f.nickname || f.username" :src="f.avatar" />
-        </div>
-      </template>
+      <div class="section-label">频道</div>
+      <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" :title="'#' + c">
+        <span class="hash">#</span><span class="label">{{ c }}</span>
+      </div>
+      <div class="section-label">私聊</div>
+      <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
+        <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="f.presence_status" />
+        <span class="name">{{ f.nickname || f.username }}</span>
+      </div>
     </div>
 
     <div class="me">
       <Avatar :name="me.nickname || me.username" :src="me.avatar" :presence="me.presence_status" />
-      <div v-if="!collapsed" class="meta">
+      <div class="meta">
         <div class="name">{{ me.nickname || me.username }}</div>
         <div class="sub">{{ statusLabel(me.presence_status) }}</div>
       </div>
-      <button v-if="!collapsed" class="dots" @click="statusOpen = !statusOpen" aria-label="设置在线状态">⋯</button>
-      <div v-if="!collapsed && statusOpen" class="status-menu">
+      <button class="dots" @click="statusOpen = !statusOpen" aria-label="设置在线状态">⋯</button>
+      <div v-if="statusOpen" class="status-menu">
         <div v-for="s in STATUS_OPTIONS" :key="s.value" class="status-opt" @click="setStatus(s.value)">
           <span class="dot" :class="'dot-' + s.value"></span> {{ s.label }}
           <span v-if="s.note" class="note">{{ s.note }}</span>
@@ -59,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { http } from '../../api/http.js';
 import { getUser, updateUser } from '../../stores/auth.js';
 import Avatar from '../Avatar.vue';
@@ -120,6 +110,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
   background: var(--rail);
   border-right: 1px solid var(--border);
 }
@@ -131,30 +122,34 @@ onMounted(async () => {
   cursor: pointer;
 }
 .brand-text { min-width: 0; flex: 1; }
-.brand-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: 0.2px; }
-.brand-sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
-.collapse-btn, .collapsed-search {
+.brand-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: 0.2px; white-space: nowrap; }
+.brand-sub { font-size: 11px; color: var(--faint); margin-top: 1px; white-space: nowrap; }
+.collapse-btn {
   flex: none; border: 0; background: transparent; color: var(--faint);
   width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; cursor: pointer;
+}
+.collapsed-search {
+  flex: none; display: none; border: 0; background: transparent; color: var(--faint);
+  width: 28px; height: 28px; border-radius: 8px; place-items: center; cursor: pointer;
 }
 .collapse-btn:hover, .collapsed-search:hover { background: var(--hover); color: var(--text); }
 
 .search {
   margin: 0 14px 12px; display: flex; align-items: center; gap: 8px;
   padding: 8px 11px; background: var(--panel); border: 1px solid var(--border);
-  border-radius: 10px; color: var(--faint); font-size: 13px;
+  border-radius: 10px; color: var(--faint); font-size: 13px; white-space: nowrap;
 }
 .search svg { flex: none; opacity: 0.7; }
 
-.rail-scroll { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
+.rail-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 10px 12px; }
 .section-label {
   font-size: 11px; font-weight: 600; letter-spacing: 0.8px; color: var(--faint);
-  text-transform: uppercase; padding: 8px 8px 6px;
+  text-transform: uppercase; padding: 8px 8px 6px; white-space: nowrap;
 }
 .chan { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; color: var(--muted); font-size: 14px; cursor: pointer; }
 .chan:hover { background: var(--hover); color: var(--text); }
 .chan.is-active { background: var(--active); color: var(--accent-strong); font-weight: 500; }
-.chan .hash { opacity: 0.7; font-family: var(--mono); font-size: 13px; }
+.chan .hash { opacity: 0.7; font-family: var(--mono); font-size: 13px; flex: none; }
 .chan .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dm { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px; cursor: pointer; }
 .dm:hover { background: var(--hover); }
@@ -167,8 +162,8 @@ onMounted(async () => {
   border: 1px solid var(--border); border-radius: 12px;
 }
 .me .meta { min-width: 0; flex: 1; }
-.me .name { font-size: 13px; font-weight: 600; }
-.me .sub { font-size: 11px; color: var(--muted); }
+.me .name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.me .sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .me .dots {
   flex: none; margin-left: auto; border: 0; background: transparent; color: var(--faint);
   width: 26px; height: 26px; border-radius: 7px; cursor: pointer; font-size: 16px; line-height: 1;
@@ -189,11 +184,19 @@ onMounted(async () => {
 .dot-busy { background: var(--red); }
 .dot-invisible { background: var(--yellow); }
 
-/* collapsed */
+/* collapsed —— 全部用 CSS 切换显示，DOM 不重建，避免闪动 */
 .rail.collapsed .brand { flex-direction: column; align-items: center; gap: 4px; padding: 16px 0 12px; }
+.rail.collapsed .brand-text { display: none; }
+.rail.collapsed .collapse-btn { display: none; }
+.rail.collapsed .collapsed-search { display: grid; }
+.rail.collapsed .search { display: none; }
+.rail.collapsed .section-label { display: none; }
 .rail.collapsed .rail-scroll { padding: 0 8px 12px; }
 .rail.collapsed .chan { justify-content: center; padding: 11px 0; }
+.rail.collapsed .chan .label { display: none; }
 .rail.collapsed .chan .hash { font-size: 15px; }
 .rail.collapsed .dm { justify-content: center; padding: 9px 0; }
+.rail.collapsed .dm .name { display: none; }
 .rail.collapsed .me { justify-content: center; padding: 10px; margin: 10px 8px 14px; }
+.rail.collapsed .me .meta, .rail.collapsed .me .dots { display: none; }
 </style>

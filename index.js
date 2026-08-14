@@ -140,11 +140,25 @@ function canAccessChannel(channel, userId) {
     return Number.isInteger(uid) && Boolean(db.channels[channel]?.members.includes(uid));
 }
 
-function getChannelMemberSummaries(channel) {
+function memberSummary(user, viewerId) {
+    return {
+        id: user.id,
+        username: user.username,
+        nickname: user.nickname || user.username,
+        avatar: user.avatar || null,
+        presence_status: presence.effectiveStatus(viewerId, user)
+    };
+}
+
+function getChannelMemberSummaries(channel, viewerId) {
     return (db.channels[channel]?.members || [])
         .map(userId => db.getUserById(userId))
         .filter(Boolean)
-        .map(user => ({ id: user.id, username: user.username }));
+        .map(user => memberSummary(user, viewerId));
+}
+
+function getPublicChannelMembers(viewerId) {
+    return db.getUsers().map(user => memberSummary(user, viewerId));
 }
 
 function getChannelOnlineCount(channel) {
@@ -809,18 +823,21 @@ app.post('/api/channel/:channel/members', authenticateUser, requireAuthenticated
         broadcastChannelPresence(channel);
     }
 
-    res.json({ success: true, invited, notFound, members: getChannelMemberSummaries(channel) });
+    res.json({ success: true, invited, notFound, members: getChannelMemberSummaries(channel, req.userId) });
 });
 
 app.get('/api/channel/:channel/members', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
-    if (!isPrivateChannel(channel)) {
-        return res.status(404).json({ error: 'Private channel not found' });
+    if (!isValidChannel(channel)) {
+        return res.status(404).json({ error: 'Channel not found' });
     }
-    if (db.channels[channel].owner_id !== req.userId) {
-        return res.status(403).json({ error: 'Only the channel owner can list members' });
+    if (isPrivateChannel(channel)) {
+        if (db.channels[channel].owner_id !== req.userId) {
+            return res.status(403).json({ error: 'Only the channel owner can list members' });
+        }
+        return res.json({ members: getChannelMemberSummaries(channel, req.userId) });
     }
-    res.json({ members: getChannelMemberSummaries(channel) });
+    res.json({ members: getPublicChannelMembers(req.userId) });
 });
 
 app.delete('/api/channel/:channel/members/:userId', authenticateUser, requireAuthenticatedUser, (req, res) => {
