@@ -20,21 +20,36 @@
     </div>
 
     <div class="rail-scroll">
-      <div class="section-label">频道</div>
-      <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" :title="'#' + c">
-        <span class="hash">#</span><span class="label">{{ c }}</span>
+      <div class="section-head" @click="toggleSection('channels')">
+        <span class="chevron" :class="{ open: sections.channels }">▾</span>
+        <span class="section-label">频道</span>
+        <button class="section-add" @click.stop="channelOpen = true" title="创建频道">+</button>
       </div>
-      <div class="section-label">私聊</div>
-      <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
-        <span class="avatar-click" @click.stop="openUserCard(f.id, $event)">
-          <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
-        </span>
-        <span class="name">{{ f.nickname || f.username }}</span>
+      <div v-show="sections.channels" class="section-body">
+        <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" :title="'#' + c">
+          <span class="hash">#</span><span class="label">{{ c }}</span>
+        </div>
+      </div>
+
+      <div class="section-head" @click="toggleSection('friends')">
+        <span class="chevron" :class="{ open: sections.friends }">▾</span>
+        <span class="section-label">好友</span>
+        <span v-if="requestCount" class="req-badge">{{ requestCount }}</span>
+        <button class="section-add" @click.stop="friendOpen = true" title="管理好友">+</button>
+      </div>
+      <div v-show="sections.friends" class="section-body">
+        <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
+          <span class="avatar-click" @click.stop="openUserCard(f.id, $event)">
+            <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
+          </span>
+          <span class="name">{{ f.nickname || f.username }}</span>
+          <span v-if="unread[f.id]" class="unread-badge">{{ unread[f.id] }}</span>
+        </div>
       </div>
     </div>
 
     <div class="me">
-      <span class="avatar-click" @click="router.push('/profile')" title="编辑个人资料">
+      <span class="avatar-click" @click="openSelfCard" title="我的信息">
         <Avatar :name="me.nickname || me.username" :src="me.avatar" :presence="me.presence_status" />
       </span>
       <div class="meta">
@@ -51,6 +66,10 @@
         <div class="status-opt logout" @click="confirmLogout">退出登录</div>
       </div>
     </div>
+
+    <CreateChannel v-if="channelOpen" @close="channelOpen = false" @created="onChannelCreated" />
+    <FriendManager v-if="friendOpen" @close="friendOpen = false" @changed="onFriendChanged" />
+
     <Teleport to="body">
       <div v-if="logoutOpen" class="modal-overlay" @click.self="logoutOpen = false">
         <div class="modal-card">
@@ -73,20 +92,28 @@ import { http } from '../../api/http.js';
 import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
 import { openUserCard } from '../../stores/userCard.js';
-import { disconnectSocket } from '../../api/socket.js';
+import { useUnread, incrementUnread, clearUnread } from '../../stores/unread.js';
+import { disconnectSocket, connectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';
+import CreateChannel from '../CreateChannel.vue';
+import FriendManager from '../FriendManager.vue';
 
 const props = defineProps({ collapsed: Boolean, activeChannel: String, activePeerId: Number });
 const emit = defineEmits(['update:collapsed', 'select-channel', 'select-dm', 'select-home']);
 
 const router = useRouter();
+const unread = useUnread();
 const channels = ref([]);
 const friends = ref([]);
+const requestCount = ref(0);
 const open = ref(false);
 const statusOpen = ref(false);
 const logoutOpen = ref(false);
+const channelOpen = ref(false);
+const friendOpen = ref(false);
 const autoAway = ref(false);
 const me = ref(getUser() || {});
+const sections = ref({ channels: true, friends: true });
 
 const STATUS_OPTIONS = [
   { value: 'online', label: '在线' },
@@ -103,9 +130,11 @@ function onBrandClick() {
   if (props.collapsed) { expand(); }
   else { emit('select-home'); }
 }
+function toggleSection(key) { sections.value[key] = !sections.value[key]; }
 
 function selectChannel(name) { open.value = false; emit('select-channel', name); }
-function selectDm(peerId) { open.value = false; emit('select-dm', peerId); }
+function selectDm(peerId) { open.value = false; clearUnread(peerId); emit('select-dm', peerId); }
+function openSelfCard(event) { openUserCard(me.value.id, event); }
 
 async function applyStatus(value) {
   const old = me.value.presence_status;
@@ -145,6 +174,39 @@ function resetIdle() {
   }
 }
 
+async function reloadChannels() {
+  try {
+    const chs = await http.get('/api/channels');
+    channels.value = chs.channels || chs || [];
+  } catch { /* 忽略 */ }
+}
+
+async function reloadFriends() {
+  try {
+    const frs = await http.get('/api/friends');
+    friends.value = frs.friends || frs || [];
+  } catch { /* 忽略 */ }
+}
+
+async function loadRequestCount() {
+  try {
+    const data = await http.get('/api/friends/requests');
+    const reqs = data.requests || data || [];
+    requestCount.value = reqs.length;
+  } catch { requestCount.value = 0; }
+}
+
+function onChannelCreated(name) {
+  channelOpen.value = false;
+  reloadChannels();
+  emit('select-channel', name);
+}
+
+function onFriendChanged() {
+  reloadFriends();
+  loadRequestCount();
+}
+
 defineExpose({ openDrawer: () => { open.value = true; } });
 
 const IDLE_EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'wheel'];
@@ -158,15 +220,14 @@ function unbindIdle() {
 }
 
 onMounted(async () => {
-  try {
-    const [chs, frs] = await Promise.all([
-      http.get('/api/channels'),
-      http.get('/api/friends')
-    ]);
-    channels.value = chs.channels || chs || [];
-    friends.value = frs.friends || frs || [];
-  } catch { /* 列表加载失败不阻塞界面 */ }
+  await Promise.all([reloadChannels(), reloadFriends(), loadRequestCount()]);
   bindIdle();
+  const socket = connectSocket();
+  socket.on('privateMessageReceived', (m) => {
+    if (m.to_user_id === me.value.id && m.from_user_id !== props.activePeerId) {
+      incrementUnread(m.from_user_id);
+    }
+  });
 });
 onBeforeUnmount(unbindIdle);
 </script>
@@ -209,10 +270,31 @@ onBeforeUnmount(unbindIdle);
 .search svg { flex: none; opacity: 0.7; }
 
 .rail-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 10px 12px; }
-.section-label {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.8px; color: var(--faint);
-  text-transform: uppercase; padding: 8px 8px 6px; white-space: nowrap;
+.section-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 8px 6px; cursor: pointer; user-select: none;
 }
+.section-head:hover .section-label { color: var(--muted); }
+.chevron {
+  font-size: 11px; color: var(--faint); display: inline-block;
+  transition: transform 0.15s ease; transform: rotate(-90deg);
+}
+.chevron.open { transform: rotate(0deg); }
+.section-label {
+  flex: 1; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; color: var(--faint);
+  text-transform: uppercase; white-space: nowrap;
+}
+.section-add {
+  flex: none; border: 0; background: transparent; color: var(--faint);
+  width: 22px; height: 22px; border-radius: 6px; cursor: pointer; font-size: 16px; line-height: 1;
+  display: grid; place-items: center;
+}
+.section-add:hover { background: var(--hover); color: var(--text); }
+.req-badge {
+  flex: none; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  background: var(--red); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
+}
+.section-body { display: flex; flex-direction: column; gap: 1px; }
 .chan { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; color: var(--muted); font-size: 14px; cursor: pointer; }
 .chan:hover { background: var(--hover); color: var(--text); }
 .chan.is-active { background: var(--active); color: var(--accent-strong); font-weight: 500; }
@@ -221,8 +303,12 @@ onBeforeUnmount(unbindIdle);
 .dm { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 9px; cursor: pointer; }
 .dm:hover { background: var(--hover); }
 .dm.is-active { background: var(--hover); }
-.dm .name { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm .name { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avatar-click { cursor: pointer; display: inline-flex; }
+.unread-badge {
+  flex: none; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
+  background: var(--red); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
+}
 
 .me {
   position: relative; display: flex; align-items: center; gap: 10px;
@@ -282,13 +368,14 @@ onBeforeUnmount(unbindIdle);
 .rail.collapsed .collapse-btn { display: none; }
 .rail.collapsed .collapsed-search { display: grid; }
 .rail.collapsed .search { display: none; }
-.rail.collapsed .section-label { display: none; }
 .rail.collapsed .rail-scroll { padding: 0 8px 12px; }
+.rail.collapsed .section-head { justify-content: center; padding: 8px 0 6px; }
+.rail.collapsed .section-head .chevron, .rail.collapsed .section-head .section-label, .rail.collapsed .section-head .section-add, .rail.collapsed .section-head .req-badge { display: none; }
 .rail.collapsed .chan { justify-content: center; padding: 11px 0; }
 .rail.collapsed .chan .label { display: none; }
 .rail.collapsed .chan .hash { font-size: 15px; }
 .rail.collapsed .dm { justify-content: center; padding: 9px 0; }
-.rail.collapsed .dm .name { display: none; }
+.rail.collapsed .dm .name, .rail.collapsed .dm .unread-badge { display: none; }
 .rail.collapsed .me { justify-content: center; padding: 10px; margin: 10px 8px 14px; }
 .rail.collapsed .me .meta, .rail.collapsed .me .dots { display: none; }
 </style>

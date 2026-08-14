@@ -2,7 +2,7 @@
   <div class="profile-page">
     <header class="page-head">
       <button class="back" @click="router.back()" aria-label="返回">← 返回</button>
-      <h1>个人资料与好友</h1>
+      <h1>个人资料</h1>
     </header>
 
     <div class="columns">
@@ -39,40 +39,6 @@
         <p v-if="profileMsg" class="ok">{{ profileMsg }}</p>
         <button class="primary" :disabled="saving" @click="saveProfile">保存</button>
       </section>
-
-      <section class="card">
-        <h2>好友申请</h2>
-        <p v-if="requestsError" class="error">{{ requestsError }}</p>
-        <div v-if="requests.length === 0" class="empty">暂无好友申请</div>
-        <div v-for="r in requests" :key="r.id" class="request">
-          <Avatar :src="r.from_user?.avatar" :name="r.from_user?.nickname || r.from_user?.username" />
-          <div class="request-body">
-            <div class="request-name">{{ r.from_user?.nickname || r.from_user?.username }}</div>
-            <div class="request-msg">{{ r.message }}</div>
-          </div>
-          <div class="request-actions">
-            <button class="primary sm" @click="respond(r.id, 'accept')">接受</button>
-            <button class="ghost sm" @click="respond(r.id, 'reject')">拒绝</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>好友管理</h2>
-        <form class="add-form" @submit.prevent="addFriend">
-          <input v-model="addUsername" placeholder="对方账号" />
-          <button class="primary sm" type="submit">添加好友</button>
-        </form>
-        <p v-if="addError" class="error">{{ addError }}</p>
-        <p v-if="addMsg" class="ok">{{ addMsg }}</p>
-        <p v-if="friendsError" class="error">{{ friendsError }}</p>
-        <div v-if="friends.length === 0" class="empty">暂无好友</div>
-        <div v-for="f in friends" :key="f.id" class="friend">
-          <Avatar :src="f.avatar" :name="f.nickname || f.username" />
-          <span class="friend-name">{{ f.nickname || f.username }}</span>
-          <button class="danger sm" @click="removeFriend(f.id)">删除</button>
-        </div>
-      </section>
     </div>
   </div>
 </template>
@@ -92,20 +58,8 @@ const profileError = ref('');
 const profileMsg = ref('');
 const saving = ref(false);
 
-const requests = ref([]);
-const requestsError = ref('');
-
-const addUsername = ref('');
-const addMsg = ref('');
-const addError = ref('');
-
-const friends = ref([]);
-const friendsError = ref('');
-
 onMounted(() => {
   loadProfile();
-  loadRequests();
-  loadFriends();
 });
 
 async function loadProfile() {
@@ -115,24 +69,6 @@ async function loadProfile() {
     if (data && data.id != null) me.value = { ...me.value, ...data };
   } catch (e) {
     profileError.value = e.message || '加载资料失败';
-  }
-}
-
-async function loadRequests() {
-  try {
-    const data = await http.get('/api/friends/requests');
-    requests.value = data.requests || data || [];
-  } catch (e) {
-    requestsError.value = e.message || '加载好友申请失败';
-  }
-}
-
-async function loadFriends() {
-  try {
-    const data = await http.get('/api/friends');
-    friends.value = data.friends || data || [];
-  } catch (e) {
-    friendsError.value = e.message || '加载好友列表失败';
   }
 }
 
@@ -182,44 +118,6 @@ async function onAvatarChange(e) {
     profileError.value = e.message || '头像上传失败';
   } finally {
     e.target.value = '';
-  }
-}
-
-async function respond(id, action) {
-  requestsError.value = '';
-  try {
-    await http.post(`/api/friends/request/${id}/respond`, { action });
-    await loadRequests();
-    if (action === 'accept') await loadFriends();
-  } catch (e) {
-    requestsError.value = e.message || '操作失败';
-  }
-}
-
-async function addFriend() {
-  addError.value = '';
-  addMsg.value = '';
-  const to = addUsername.value.trim();
-  if (!to) {
-    addError.value = '请输入用户名';
-    return;
-  }
-  try {
-    await http.post('/api/friends/request', { to, message: '' });
-    addMsg.value = '好友申请已发送';
-    addUsername.value = '';
-  } catch (e) {
-    addError.value = e.message || '发送失败';
-  }
-}
-
-async function removeFriend(id) {
-  friendsError.value = '';
-  try {
-    await http.del(`/api/friends/${id}`);
-    await loadFriends();
-  } catch (e) {
-    friendsError.value = e.message || '删除失败';
   }
 }
 </script>
