@@ -10,10 +10,8 @@
 
           <div class="em-avatar">
             <Avatar :src="form.avatar" :name="form.nickname || form.username" :size="56" />
-            <label class="em-upload">
-              更换头像
-              <input type="file" accept="image/*" @change="onAvatarChange" hidden />
-            </label>
+            <button type="button" class="em-upload" @click="pickAvatar">更换头像</button>
+            <input ref="fileInput" type="file" accept="image/*" @change="onAvatarChange" style="display: none" />
           </div>
 
           <label class="em-field">
@@ -59,10 +57,12 @@ const error = ref('');
 const msg = ref('');
 const saving = ref(false);
 const nickInput = ref(null);
+const fileInput = ref(null);
 
 onMounted(() => { nickInput.value?.focus(); });
 
 function close() { emit('close'); }
+function pickAvatar() { fileInput.value?.click(); }
 
 async function save() {
   error.value = '';
