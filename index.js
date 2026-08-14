@@ -1442,7 +1442,13 @@ app.get('/api/dm/:peerUserId/messages', authenticateUser, requireUser, (req, res
         raw = raw.filter(m => new Date(m.created_at).getTime() > t);
     }
     const messages = raw.map(m => {
-        const out = { ...m };
+        const sender = db.getUserById(m.from_user_id);
+        const out = {
+            ...m,
+            username: sender?.username || '该账户已注销',
+            nickname: sender?.nickname || sender?.username || '该账户已注销',
+            avatar: sender?.avatar || DEFAULT_AVATAR
+        };
         if (m.reply_to) {
             const replied = db.getDmMessageById(m.reply_to);
             const fromUser = replied ? db.getUserById(replied.from_user_id) : null;
