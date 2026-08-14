@@ -5,10 +5,12 @@
     </Transition>
   </router-view>
   <UserCard />
+  <SessionReplacedModal />
 </template>
 
 <script setup>
 import UserCard from './components/UserCard.vue';
+import SessionReplacedModal from './components/SessionReplacedModal.vue';
 </script>
 
 <style>

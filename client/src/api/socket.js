@@ -8,10 +8,7 @@ export function connectSocket() {
   socket = io({ transports: ['websocket', 'polling'] });
   socket.on('authenticated', (payload) => { socket._userId = payload.userId; });
   socket.on('sessionReplaced', () => {
-    import('../stores/auth.js').then(({ clearLogin }) => {
-      clearLogin();
-      location.href = '/login';
-    });
+    import('../stores/session.js').then(({ setSessionReplaced }) => setSessionReplaced(true));
   });
   return socket;
 }

@@ -1,6 +1,6 @@
 <template>
   <div class="stage">
-    <div class="app" :class="{ collapsed }">
+    <div class="app" :class="{ collapsed, 'no-aside': !activeChannel }">
       <AppRail
         ref="railRef"
         v-model:collapsed="collapsed"
@@ -40,7 +40,7 @@
           </div>
         </Transition>
       </main>
-      <aside class="aside">
+      <aside v-if="activeChannel" class="aside">
         <MemberList :channel="activeChannel" />
       </aside>
       <ChannelMenu v-if="channelMenuOpen && activeChannel" :channel="activeChannel" @close="channelMenuOpen = false" @changed="onChannelChanged" />
@@ -124,6 +124,8 @@ watch([activeChannel, activePeerId], ([channel, peerId]) => {
   transition: grid-template-columns 0.18s ease;
 }
 .app.collapsed { grid-template-columns: 68px 1fr 236px; }
+.app.no-aside { grid-template-columns: 264px 1fr; }
+.app.no-aside.collapsed { grid-template-columns: 68px 1fr; }
 .main {
   display: flex;
   flex-direction: column;
