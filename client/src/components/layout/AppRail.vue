@@ -22,8 +22,8 @@
     <div class="rail-scroll">
       <template v-if="!collapsed">
         <div class="section-label">频道</div>
-        <div v-for="c in channels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)">
-          <span class="hash">#</span><span class="label">{{ c.name }}</span>
+        <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)">
+          <span class="hash">#</span><span class="label">{{ c }}</span>
         </div>
         <div class="section-label">私聊</div>
         <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)">
@@ -32,7 +32,7 @@
         </div>
       </template>
       <template v-else>
-        <div v-for="c in channels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" title="#{{ c.name }}">
+        <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" title="#{{ c }}">
           <span class="hash">#</span>
         </div>
         <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
