@@ -25,11 +25,13 @@
         <span class="section-label">频道</span>
         <button class="section-add" @click.stop="channelOpen = true" title="创建频道">+</button>
       </div>
-      <div v-show="sections.channels" class="section-body">
-        <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" :title="'#' + c">
-          <span class="hash">#</span><span class="label">{{ c }}</span>
+      <Transition name="fold">
+        <div v-if="sections.channels" class="section-body">
+          <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" :title="'#' + c">
+            <span class="hash">#</span><span class="label">{{ c }}</span>
+          </div>
         </div>
-      </div>
+      </Transition>
 
       <div class="section-head" @click="toggleSection('friends')">
         <span class="chevron" :class="{ open: sections.friends }">▾</span>
@@ -37,19 +39,21 @@
         <span v-if="requestCount" class="req-badge">{{ requestCount }}</span>
         <button class="section-add" @click.stop="friendOpen = true" title="管理好友">+</button>
       </div>
-      <div v-show="sections.friends" class="section-body">
-        <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
-          <span class="avatar-click" @click.stop="openUserCard(f.id, $event)">
-            <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
-          </span>
-          <span class="name">{{ f.nickname || f.username }}</span>
-          <span v-if="unread[f.id]" class="unread-badge">{{ unread[f.id] }}</span>
+      <Transition name="fold">
+        <div v-if="sections.friends" class="section-body">
+          <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
+            <span class="avatar-click" @click.stop="openUserCard(f.id, $event)">
+              <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
+            </span>
+            <span class="name">{{ f.nickname || f.username }}</span>
+            <span v-if="unread[f.id]" class="unread-badge">{{ unread[f.id] }}</span>
+          </div>
         </div>
-      </div>
+      </Transition>
     </div>
 
     <div class="me">
-      <span class="avatar-click" @click="openSelfCard" title="我的信息">
+      <span class="avatar-click" @click="editOpen = true" title="编辑个人资料">
         <Avatar :name="me.nickname || me.username" :src="me.avatar" :presence="me.presence_status" />
       </span>
       <div class="meta">
@@ -69,6 +73,7 @@
 
     <CreateChannel v-if="channelOpen" @close="channelOpen = false" @created="onChannelCreated" />
     <FriendManager v-if="friendOpen" @close="friendOpen = false" @changed="onFriendChanged" />
+    <EditProfileModal v-if="editOpen" @close="editOpen = false" @saved="onProfileSaved" />
 
     <Teleport to="body">
       <div v-if="logoutOpen" class="modal-overlay" @click.self="logoutOpen = false">
@@ -97,6 +102,7 @@ import { disconnectSocket, connectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';
 import CreateChannel from '../CreateChannel.vue';
 import FriendManager from '../FriendManager.vue';
+import EditProfileModal from '../EditProfileModal.vue';
 
 const props = defineProps({ collapsed: Boolean, activeChannel: String, activePeerId: Number });
 const emit = defineEmits(['update:collapsed', 'select-channel', 'select-dm', 'select-home']);
@@ -111,6 +117,7 @@ const statusOpen = ref(false);
 const logoutOpen = ref(false);
 const channelOpen = ref(false);
 const friendOpen = ref(false);
+const editOpen = ref(false);
 const autoAway = ref(false);
 const me = ref(getUser() || {});
 const sections = ref({ channels: true, friends: true });
@@ -134,7 +141,7 @@ function toggleSection(key) { sections.value[key] = !sections.value[key]; }
 
 function selectChannel(name) { open.value = false; emit('select-channel', name); }
 function selectDm(peerId) { open.value = false; clearUnread(peerId); emit('select-dm', peerId); }
-function openSelfCard(event) { openUserCard(me.value.id, event); }
+function onProfileSaved() { me.value = { ...(getUser() || {}) }; }
 
 async function applyStatus(value) {
   const old = me.value.presence_status;
@@ -281,8 +288,7 @@ onBeforeUnmount(unbindIdle);
 }
 .chevron.open { transform: rotate(0deg); }
 .section-label {
-  flex: 1; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; color: var(--faint);
-  text-transform: uppercase; white-space: nowrap;
+  flex: 1; font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: var(--text); white-space: nowrap;
 }
 .section-add {
   flex: none; border: 0; background: transparent; color: var(--faint);
@@ -295,6 +301,8 @@ onBeforeUnmount(unbindIdle);
   background: var(--red); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
 }
 .section-body { display: flex; flex-direction: column; gap: 1px; }
+.fold-enter-active, .fold-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.fold-enter-from, .fold-leave-to { opacity: 0; transform: translateY(-4px); }
 .chan { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px; color: var(--muted); font-size: 14px; cursor: pointer; }
 .chan:hover { background: var(--hover); color: var(--text); }
 .chan.is-active { background: var(--active); color: var(--accent-strong); font-weight: 500; }

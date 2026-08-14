@@ -21,21 +21,16 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
-import { getUser } from '../stores/auth.js';
 import { openUserCard } from '../stores/userCard.js';
 import Avatar from './Avatar.vue';
 
 const props = defineProps({ message: Object, mine: Boolean });
-const router = useRouter();
-const myId = getUser()?.id;
 
 const senderId = computed(() => props.message.user_id ?? props.message.from_user_id);
 
 function goProfile(event) {
   if (senderId.value == null) return;
-  if (senderId.value === myId) router.push('/profile');
-  else openUserCard(senderId.value, event);
+  openUserCard(senderId.value, event);
 }
 
 const time = computed(() => {

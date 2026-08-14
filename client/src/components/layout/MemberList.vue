@@ -18,7 +18,6 @@
 
 <script setup>
 import { ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
@@ -26,13 +25,11 @@ import { openUserCard } from '../../stores/userCard.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ channel: String });
-const router = useRouter();
 const members = ref([]);
 const meId = getUser()?.id;
 
 function goProfile(id, event) {
-  if (id === meId) router.push('/profile');
-  else openUserCard(id, event);
+  openUserCard(id, event);
 }
 
 watch(() => props.channel, async (c) => {
