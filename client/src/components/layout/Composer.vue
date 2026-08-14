@@ -1,5 +1,9 @@
 <template>
   <div class="composer">
+    <div v-if="replyTo" class="reply-banner">
+      <span class="reply-label">回复 {{ replyTo.nickname || replyTo.username }}</span>
+      <button class="reply-cancel" @click="emit('clear-reply')" aria-label="取消回复">×</button>
+    </div>
     <div class="composer-box">
       <textarea
         v-model="text"
@@ -28,7 +32,8 @@
 import { ref, computed } from 'vue';
 import { getSocket } from '../../api/socket.js';
 
-const props = defineProps({ channel: String, peerId: Number });
+const props = defineProps({ channel: String, peerId: Number, replyTo: Object });
+const emit = defineEmits(['clear-reply']);
 const text = ref('');
 
 const placeholder = computed(() => {
@@ -40,17 +45,28 @@ const placeholder = computed(() => {
 function send() {
   const value = text.value.trim(); if (!value) return;
   const socket = getSocket();
+  const reply_to = props.replyTo?.id ?? undefined;
   if (props.peerId != null) {
-    socket.emit('sendPrivateMessage', { toUserId: props.peerId, content: value });
+    socket.emit('sendPrivateMessage', { toUserId: props.peerId, content: value, reply_to });
   } else if (props.channel) {
-    socket.emit('sendMessage', { channel: props.channel, content: value });
+    socket.emit('sendMessage', { channel: props.channel, content: value, reply_to });
   }
   text.value = '';
+  emit('clear-reply');
 }
 </script>
 
 <style scoped>
 .composer { padding: 12px 20px 16px; }
+.reply-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; margin-bottom: 8px;
+  background: var(--accent-ghost); border: 1px solid var(--border); border-radius: 10px;
+  font-size: 13px; color: var(--accent-strong);
+}
+.reply-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reply-cancel { border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.reply-cancel:hover { color: var(--text); }
 .composer-box {
   border: 1px solid var(--border-strong); border-radius: 14px; background: var(--panel);
   padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;

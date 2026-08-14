@@ -11,9 +11,6 @@ defineProps({ presence: { type: String, default: 'offline' } });
 .presence-online { background: var(--green); }
 .presence-offline { background: var(--red); }
 .presence-invisible { background: var(--yellow); }
-.presence-away { background: var(--yellow); }
-.presence-busy { background: var(--red); }
-.presence-busy::before {
-  content: ''; position: absolute; left: 2px; right: 2px; top: 50%; height: 2px; transform: translateY(-50%); background: #fff; border-radius: 1px;
-}
+.presence-away { background: linear-gradient(to right, var(--yellow) 50%, #fff 50%); }
+.presence-busy { background: linear-gradient(to right, var(--red) 50%, #fff 50%); }
 </style>

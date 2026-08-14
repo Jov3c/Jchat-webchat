@@ -4,7 +4,9 @@
     <div class="rail-scroll">
       <div v-if="!members.length" class="empty">暂无成员</div>
       <div v-for="m in members" :key="m.id" class="member">
-        <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="getLivePresence(m.id, m.presence_status)" :size="30" />
+        <span class="avatar-click" @click="goProfile(m.id)">
+          <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="getLivePresence(m.id, m.presence_status)" :size="30" />
+        </span>
         <span class="name">{{ m.nickname || m.username }}<span v-if="m.id === meId" class="you">你</span></span>
       </div>
     </div>
@@ -16,14 +18,21 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ channel: String });
+const router = useRouter();
 const members = ref([]);
 const meId = getUser()?.id;
+
+function goProfile(id) {
+  if (id === meId) router.push('/profile');
+  else router.push('/user/' + id);
+}
 
 watch(() => props.channel, async (c) => {
   if (!c) { members.value = []; return; }
@@ -41,6 +50,7 @@ watch(() => props.channel, async (c) => {
 .rail-scroll { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
 .member { display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 9px; }
 .member:hover { background: var(--hover); }
+.avatar-click { cursor: pointer; display: inline-flex; }
 .member .name { font-size: 13px; color: var(--muted); }
 .member .you { font-size: 11px; color: var(--accent-strong); font-weight: 500; margin-left: 4px; }
 .empty { color: var(--muted); text-align: center; margin-top: 16px; font-size: 13px; }

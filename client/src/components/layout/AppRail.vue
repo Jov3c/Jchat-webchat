@@ -1,7 +1,7 @@
 <template>
   <nav class="rail" :class="{ collapsed, open }">
     <div class="brand">
-      <div class="brand-mark" @click="expand" title="展开侧边栏">J</div>
+      <div class="brand-mark" @click="onBrandClick" :title="collapsed ? '展开侧边栏' : '回到主页'">J</div>
       <div class="brand-text">
         <div class="brand-name">JoyChat</div>
         <div class="brand-sub">团队协作 · 端到端加密</div>
@@ -26,13 +26,17 @@
       </div>
       <div class="section-label">私聊</div>
       <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
-        <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
+        <span class="avatar-click" @click.stop="router.push('/user/' + f.id)">
+          <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
+        </span>
         <span class="name">{{ f.nickname || f.username }}</span>
       </div>
     </div>
 
     <div class="me">
-      <Avatar :name="me.nickname || me.username" :src="me.avatar" :presence="me.presence_status" />
+      <span class="avatar-click" @click="router.push('/profile')" title="编辑个人资料">
+        <Avatar :name="me.nickname || me.username" :src="me.avatar" :presence="me.presence_status" />
+      </span>
       <div class="meta">
         <div class="name">{{ me.nickname || me.username }}</div>
         <div class="sub">{{ statusLabel(me.presence_status) }}</div>
@@ -43,25 +47,42 @@
           <span class="dot" :class="'dot-' + s.value"></span> {{ s.label }}
           <span v-if="s.note" class="note">{{ s.note }}</span>
         </div>
+        <div class="status-divider"></div>
+        <div class="status-opt logout" @click="confirmLogout">退出登录</div>
       </div>
     </div>
+    <Teleport to="body">
+      <div v-if="logoutOpen" class="modal-overlay" @click.self="logoutOpen = false">
+        <div class="modal-card">
+          <div class="modal-title">退出登录</div>
+          <div class="modal-text">确定要退出登录吗？</div>
+          <div class="modal-actions">
+            <button class="modal-btn" @click="logoutOpen = false">取消</button>
+            <button class="modal-btn danger" @click="doLogout">退出登录</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </nav>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
-import { getUser, updateUser } from '../../stores/auth.js';
+import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ collapsed: Boolean, activeChannel: String, activePeerId: Number });
-const emit = defineEmits(['update:collapsed', 'select-channel', 'select-dm']);
+const emit = defineEmits(['update:collapsed', 'select-channel', 'select-dm', 'select-home']);
 
+const router = useRouter();
 const channels = ref([]);
 const friends = ref([]);
 const open = ref(false);
 const statusOpen = ref(false);
+const logoutOpen = ref(false);
 const me = ref(getUser() || {});
 
 const STATUS_OPTIONS = [
@@ -75,6 +96,10 @@ function statusLabel(s) { return STATUS_LABELS[s] || '在线'; }
 
 function collapse() { emit('update:collapsed', true); }
 function expand() { emit('update:collapsed', false); open.value = false; }
+function onBrandClick() {
+  if (props.collapsed) { expand(); }
+  else { emit('select-home'); }
+}
 
 function selectChannel(name) { open.value = false; emit('select-channel', name); }
 function selectDm(peerId) { open.value = false; emit('select-dm', peerId); }
@@ -91,7 +116,31 @@ async function setStatus(value) {
   }
 }
 
+function confirmLogout() { statusOpen.value = false; logoutOpen.value = true; }
+function doLogout() { clearLogin(); router.push('/login'); }
+
+// 无操作 30 分钟后自动切到「离开」（仅当当前为在线时）
+const IDLE_MS = 30 * 60 * 1000;
+let idleTimer = null;
+function onIdle() {
+  if (me.value.presence_status === 'online') setStatus('away');
+}
+function resetIdle() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(onIdle, IDLE_MS);
+}
+
 defineExpose({ openDrawer: () => { open.value = true; } });
+
+const IDLE_EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'wheel'];
+function bindIdle() {
+  IDLE_EVENTS.forEach(e => window.addEventListener(e, resetIdle, { passive: true }));
+  resetIdle();
+}
+function unbindIdle() {
+  IDLE_EVENTS.forEach(e => window.removeEventListener(e, resetIdle));
+  clearTimeout(idleTimer);
+}
 
 onMounted(async () => {
   try {
@@ -102,7 +151,9 @@ onMounted(async () => {
     channels.value = chs.channels || chs || [];
     friends.value = frs.friends || frs || [];
   } catch { /* 列表加载失败不阻塞界面 */ }
+  bindIdle();
 });
+onBeforeUnmount(unbindIdle);
 </script>
 
 <style scoped>
@@ -156,6 +207,7 @@ onMounted(async () => {
 .dm:hover { background: var(--hover); }
 .dm.is-active { background: var(--hover); }
 .dm .name { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar-click { cursor: pointer; display: inline-flex; }
 
 .me {
   position: relative; display: flex; align-items: center; gap: 10px;
@@ -179,10 +231,34 @@ onMounted(async () => {
 .status-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
 .status-opt:hover { background: var(--hover); }
 .status-opt .note { margin-left: auto; font-size: 11px; color: var(--faint); }
+.status-divider { height: 1px; margin: 6px 4px; background: var(--border); }
+.status-opt.logout { color: var(--red); }
+.status-opt.logout:hover { background: color-mix(in srgb, var(--red) 10%, transparent); }
+
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center;
+  background: rgba(20, 18, 14, 0.4);
+  backdrop-filter: blur(2px);
+}
+.modal-card {
+  width: 300px; padding: 24px; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow);
+}
+.modal-title { font-weight: 600; font-size: 16px; }
+.modal-text { color: var(--muted); font-size: 14px; margin-top: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.modal-btn {
+  padding: 8px 16px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font-size: 13px; cursor: pointer;
+}
+.modal-btn:hover { background: var(--hover); }
+.modal-btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.modal-btn.danger:hover { background: color-mix(in srgb, var(--red) 85%, #000); }
 .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none; }
 .dot-online { background: var(--green); }
-.dot-away { background: var(--yellow); }
-.dot-busy { background: var(--red); }
+.dot-away { background: linear-gradient(to right, var(--yellow) 50%, #fff 50%); }
+.dot-busy { background: linear-gradient(to right, var(--red) 50%, #fff 50%); }
 .dot-invisible { background: var(--yellow); }
 
 /* collapsed —— 全部用 CSS 切换显示，DOM 不重建，避免闪动 */

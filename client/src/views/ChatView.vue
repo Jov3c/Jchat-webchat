@@ -8,6 +8,7 @@
         :active-peer-id="activePeerId"
         @select-channel="openChannel"
         @select-dm="openDm"
+        @select-home="goHome"
       />
       <main class="main">
         <div class="mobile-top">
@@ -16,19 +17,26 @@
           <span class="spacer"></span>
           <button class="icon-btn" aria-label="菜单">⋮</button>
         </div>
-        <header class="main-head">
-          <div class="head-title">
-            <span v-if="activeChannel" class="hash">#</span>{{ title }}
-          </div>
-          <div v-if="subtitle" class="head-sub">{{ subtitle }}</div>
-          <span class="spacer"></span>
-          <button class="icon-btn" aria-label="搜索">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          </button>
-          <button class="icon-btn" aria-label="更多">⋮</button>
-        </header>
-        <MessageList :channel="activeChannel" :peer-id="activePeerId" />
-        <Composer :channel="activeChannel" :peer-id="activePeerId" />
+        <template v-if="activeChannel || activePeerId != null">
+          <header class="main-head">
+            <div class="head-title">
+              <span v-if="activeChannel" class="hash">#</span>{{ title }}
+            </div>
+            <div v-if="subtitle" class="head-sub">{{ subtitle }}</div>
+            <span class="spacer"></span>
+            <button class="icon-btn" aria-label="搜索">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            </button>
+            <button class="icon-btn" aria-label="更多">⋮</button>
+          </header>
+          <MessageList :channel="activeChannel" :peer-id="activePeerId" @reply="replyTo = $event" />
+          <Composer :channel="activeChannel" :peer-id="activePeerId" :reply-to="replyTo" @clear-reply="replyTo = null" />
+        </template>
+        <div v-else class="home">
+          <div class="home-mark">J</div>
+          <div class="home-title">JoyChat</div>
+          <div class="home-sub">从左侧选择一个聊天开始</div>
+        </div>
       </main>
       <aside class="aside">
         <MemberList :channel="activeChannel" />
@@ -49,6 +57,7 @@ import { applyPresenceUpdate } from '../stores/presence.js';
 const collapsed = ref(false);
 const activeChannel = ref(null);
 const activePeerId = ref(null);
+const replyTo = ref(null);
 const railRef = ref(null);
 
 const title = computed(() => {
@@ -62,8 +71,9 @@ const subtitle = computed(() => {
   return '';
 });
 
-function openChannel(name) { activeChannel.value = name; activePeerId.value = null; }
-function openDm(peerId) { activePeerId.value = peerId; activeChannel.value = null; }
+function openChannel(name) { activeChannel.value = name; activePeerId.value = null; replyTo.value = null; }
+function openDm(peerId) { activePeerId.value = peerId; activeChannel.value = null; replyTo.value = null; }
+function goHome() { activeChannel.value = null; activePeerId.value = null; replyTo.value = null; }
 
 onMounted(() => {
   const socket = connectSocket();
@@ -107,6 +117,23 @@ watch([activeChannel, activePeerId], ([channel, peerId]) => {
   background: var(--panel);
 }
 .aside { min-height: 0; background: var(--rail); border-left: 1px solid var(--border); }
+
+.home {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  text-align: center;
+}
+.home-mark {
+  width: 56px; height: 56px; border-radius: 16px; background: var(--accent);
+  display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 28px;
+}
+.home-title { font-family: var(--font-display); font-size: 24px; font-weight: 600; letter-spacing: 0.2px; }
+.home-sub { color: var(--muted); font-size: 14px; }
 
 .main-head {
   display: flex;

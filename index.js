@@ -1720,8 +1720,8 @@ io.on('connection', (socket) => {
         const now = new Date();
         const timeDiff = (now - messageTime) / (1000 * 60);
 
-        if (timeDiff > 2) {
-            console.log(`撤回请求：消息 ${messageId} 已超过2分钟撤回时限 (${timeDiff.toFixed(2)}分钟)`);
+        if (timeDiff > 3) {
+            console.log(`撤回请求：消息 ${messageId} 已超过3分钟撤回时限 (${timeDiff.toFixed(2)}分钟)`);
             socket.emit('recallFailed', { reason: 'time_limit' });
             return;
         }
@@ -1782,7 +1782,7 @@ io.on('connection', (socket) => {
             return;
         }
         const created = new Date(message.created_at).getTime();
-        if (Number.isNaN(created) || (Date.now() - created) / (1000 * 60) > 2) {
+        if (Number.isNaN(created) || (Date.now() - created) / (1000 * 60) > 3) {
             socket.emit('recallDmFailed', { reason: 'time_limit' });
             return;
         }
