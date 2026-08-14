@@ -373,9 +373,9 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.deepEqual(JSON.parse(row.members), [owner.userId, invited.userId]);
     });
 
-    await t.test('member listing and removal are owner-only and the owner cannot remove themself', async () => {
+    await t.test('member listing is available to any member while removal is owner-only', async () => {
         const invitedListing = await requestJson(`${baseUrl}/api/channel/${privatePath}/members`, authOptions(invited.token));
-        assert.equal(invitedListing.response.status, 403);
+        assert.equal(invitedListing.response.status, 200);
 
         const listing = await requestJson(`${baseUrl}/api/channel/${privatePath}/members`, authOptions(owner.token));
         assert.equal(listing.response.status, 200);

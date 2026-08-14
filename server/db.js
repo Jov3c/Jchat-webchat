@@ -119,6 +119,16 @@ sqlite.exec(`
     PRIMARY KEY (user_id, channel),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS channel_invites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel TEXT NOT NULL,
+    invited_user_id INTEGER NOT NULL,
+    inviter_user_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (invited_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (inviter_user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 const channelColumns = sqlite.prepare('PRAGMA table_info(channels)').all();
@@ -171,6 +181,30 @@ function setChannelAlias(userId, channel, alias) {
         channelAliases.set(key, value);
         sqlite.prepare('INSERT INTO channel_aliases(user_id, channel, alias) VALUES (?, ?, ?) ON CONFLICT(user_id, channel) DO UPDATE SET alias = excluded.alias').run(uid, channel, value);
     }
+}
+
+function createChannelInvite(channel, invitedUserId, inviterUserId) {
+    const iid = int(invitedUserId), irid = int(inviterUserId);
+    if (!validInt(iid) || !validInt(irid)) return null;
+    const result = sqlite.prepare('INSERT INTO channel_invites(channel, invited_user_id, inviter_user_id, status, created_at) VALUES (?, ?, ?, \'pending\', ?)').run(channel, iid, irid, nowIso());
+    return sqlite.prepare('SELECT * FROM channel_invites WHERE id = ?').get(Number(result.lastInsertRowid)) || null;
+}
+
+function getPendingChannelInvites(userId) {
+    const uid = int(userId);
+    if (!validInt(uid)) return [];
+    return sqlite.prepare('SELECT * FROM channel_invites WHERE invited_user_id = ? AND status = \'pending\' ORDER BY id DESC').all(uid).map(asObject);
+}
+
+function respondChannelInvite(id, userId, action) {
+    const invite = sqlite.prepare('SELECT * FROM channel_invites WHERE id = ?').get(int(id));
+    if (!invite) return { ok: false, error: 'not_found' };
+    if (int(invite.invited_user_id) !== int(userId)) return { ok: false, error: 'not_authorized' };
+    if (invite.status !== 'pending') return { ok: false, error: 'already_resolved' };
+    if (!['accept', 'reject'].includes(action)) return { ok: false, error: 'invalid_action' };
+    const status = action === 'accept' ? 'accepted' : 'rejected';
+    sqlite.prepare('UPDATE channel_invites SET status = ? WHERE id = ?').run(status, invite.id);
+    return { ok: true, invite: { ...invite, status } };
 }
 
 function userFromRow(row) {
@@ -617,5 +651,6 @@ module.exports = {
     deleteDmMessageForUser, clearDmConversationForUser, getConversationKey, saveData,
     resetAllMessages, getChannelClearTime, setChannelClearTime, getDmClearTime, setDmClearTime,
     clearDmDataBetween, isBlocked, addBlock, removeBlock, getBlockedUserIds,
-    getChannelAlias, setChannelAlias
+    getChannelAlias, setChannelAlias,
+    createChannelInvite, getPendingChannelInvites, respondChannelInvite
 };

@@ -23,8 +23,8 @@
       <div class="section-head" @click="toggleSection('channels')">
         <span class="chevron" :class="{ open: sections.channels }">▾</span>
         <span class="section-label">频道</span>
-        <span class="add-wrap" @click.stop="channelOpen = true">
-          <button class="section-add" title="创建频道">+</button>
+        <span class="add-wrap" @click.stop="openChannelManager">
+          <button class="section-add" title="频道管理">+</button>
           <span v-if="channelInviteNotice" class="add-dot"></span>
         </span>
       </div>
@@ -76,7 +76,7 @@
       </div>
     </div>
 
-    <CreateChannel v-if="channelOpen" @close="channelOpen = false" @created="onChannelCreated" />
+    <ChannelManager v-if="channelOpen" @close="channelOpen = false" @changed="onChannelChanged" />
     <FriendManager v-if="friendOpen" @close="friendOpen = false" @changed="onFriendChanged" />
     <EditProfileModal v-if="editOpen" @close="editOpen = false" @saved="onProfileSaved" />
 
@@ -106,7 +106,7 @@ import { useUnread, incrementUnread, clearUnread } from '../../stores/unread.js'
 import { fetchChannels } from '../../stores/channels.js';
 import { disconnectSocket, connectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';
-import CreateChannel from '../CreateChannel.vue';
+import ChannelManager from '../ChannelManager.vue';
 import FriendManager from '../FriendManager.vue';
 import EditProfileModal from '../EditProfileModal.vue';
 
@@ -207,10 +207,13 @@ async function loadRequestCount() {
   } catch { requestCount.value = 0; }
 }
 
-function onChannelCreated(name) {
-  channelOpen.value = false;
+function openChannelManager() {
+  channelInviteNotice.value = false;
+  channelOpen.value = true;
+}
+
+function onChannelChanged() {
   reloadChannels();
-  emit('select-channel', name);
 }
 
 function onFriendChanged() {
@@ -241,6 +244,12 @@ onMounted(async () => {
   });
   socket.on('channelInvited', () => {
     channelInviteNotice.value = true;
+    reloadChannels();
+  });
+  socket.on('channelInvitePending', () => {
+    channelInviteNotice.value = true;
+  });
+  socket.on('channelRemoved', () => {
     reloadChannels();
   });
 });

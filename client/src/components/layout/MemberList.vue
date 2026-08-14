@@ -10,9 +10,6 @@
         <span class="name">{{ m.nickname || m.username }}<span v-if="m.id === meId" class="you">你</span></span>
       </div>
     </div>
-    <div class="hint">
-      <b>私聊端到端加密</b><br>服务器只存密文，钥匙只在你设备上。
-    </div>
   </div>
 </template>
 
@@ -52,9 +49,4 @@ watch(() => props.channel, async (c) => {
 .member .name { font-size: 13px; color: var(--muted); }
 .member .you { font-size: 11px; color: var(--accent-strong); font-weight: 500; margin-left: 4px; }
 .empty { color: var(--muted); text-align: center; margin-top: 16px; font-size: 13px; }
-.hint {
-  margin: 16px 14px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; font-size: 12px; color: var(--muted); line-height: 1.6;
-}
-.hint b { color: var(--text); }
 </style>

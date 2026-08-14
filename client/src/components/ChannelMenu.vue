@@ -33,6 +33,7 @@
                 <button v-if="m.id !== meId" class="cm-del" @click="removeMember(m.id)">移除</button>
               </div>
             </div>
+            <button class="cm-disband" @click="disband">解散频道</button>
           </template>
 
           <template v-else>
@@ -119,6 +120,18 @@ async function removeMember(id) {
   }
 }
 
+async function disband() {
+  if (!confirm('确定要解散这个频道吗？解散后所有成员都将失去该频道。')) return;
+  error.value = '';
+  try {
+    await http.del(`/api/channel/${encodeURIComponent(props.channel)}`);
+    emit('changed');
+    emit('close');
+  } catch (e) {
+    error.value = e.message || '解散失败';
+  }
+}
+
 async function leave() {
   error.value = '';
   try {
@@ -154,6 +167,8 @@ async function leave() {
 .cm-del:hover { background: var(--red); color: #fff; }
 .cm-leave { width: 100%; padding: 9px; border: 1px solid var(--red); border-radius: 9px; background: transparent; color: var(--red); font-size: 13px; cursor: pointer; }
 .cm-leave:hover { background: var(--red); color: #fff; }
+.cm-disband { width: 100%; margin-top: 12px; padding: 9px; border: 1px solid var(--red); border-radius: 9px; background: transparent; color: var(--red); font-size: 13px; cursor: pointer; }
+.cm-disband:hover { background: var(--red); color: #fff; }
 .cm-empty { color: var(--muted); font-size: 13px; padding: 4px 0; }
 .cm-error { color: var(--red); font-size: 12px; margin-top: 4px; }
 .cm-ok { color: var(--green); font-size: 12px; margin-top: 4px; }

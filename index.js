@@ -549,6 +549,19 @@ app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUs
 app.get('/api/channel/:channel/access/:userId', authenticateUser, requireAuthenticatedUser, (req, res) => {
     return res.json({ hasAccess: canAccessChannel(req.params.channel, req.userId) });
 });
+
+app.delete('/api/channel/:channel', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { channel } = req.params;
+    if (!isPrivateChannel(channel)) return res.status(400).json({ error: '公共频道无法解散' });
+    const channelData = db.channels[channel];
+    if (!channelData) return res.status(404).json({ error: 'Channel not found' });
+    if (channelData.owner_id !== parseInt(req.userId, 10)) return res.status(403).json({ error: '只有创建者可以解散频道' });
+    const memberIds = [...channelData.members];
+    delete db.channels[channel];
+    db.saveData();
+    for (const uid of memberIds) io.to(`user:${uid}`).emit('channelRemoved', { channel });
+    res.json({ success: true });
+});
 app.post('/api/register', registrationRateLimiter, async (req, res) => {
     if (!REGISTRATION_ENABLED) {
         return res.status(403).json({ error: '注册功能已关闭' });
@@ -839,34 +852,74 @@ app.post('/api/channel/:channel/members', authenticateUser, requireAuthenticated
     }
 
     const usernames = [...new Set(req.body.usernames.filter(username => username.length > 0))];
+    const needConsent = channelData.members.length > 10;
+    const memberIds = new Set(channelData.members);
     const invited = [];
     const notFound = [];
-    const memberIds = new Set(channelData.members);
+    const autoAdded = [];
+    const pendingInvites = [];
+
     for (const username of usernames) {
         const user = db.getUserByUsername(username);
         if (!user) {
             notFound.push(username);
             continue;
         }
-        if (!memberIds.has(user.id)) {
-            memberIds.add(user.id);
-            invited.push({ id: user.id, username: user.username });
-        }
+        if (memberIds.has(user.id)) continue;
+        invited.push({ id: user.id, username: user.username });
+        if (needConsent) pendingInvites.push(user);
+        else { memberIds.add(user.id); autoAdded.push(user); }
     }
 
-    if (invited.length) {
+    if (autoAdded.length) {
         channelData.members = [...memberIds];
         db.saveData();
-        const owner = db.getUserById(req.userId);
-        const payload = {
-            channel,
-            invitedBy: { id: owner.id, username: owner.username }
-        };
-        for (const user of invited) io.to(`user:${user.id}`).emit('channelInvited', payload);
         broadcastChannelPresence(channel);
+    }
+    const owner = db.getUserById(req.userId);
+    const inviter = { id: owner.id, username: owner.username };
+    for (const user of autoAdded) io.to(`user:${user.id}`).emit('channelInvited', { channel, invitedBy: inviter });
+    for (const user of pendingInvites) {
+        db.createChannelInvite(channel, user.id, req.userId);
+        io.to(`user:${user.id}`).emit('channelInvitePending', { channel, invitedBy: inviter });
     }
 
     res.json({ success: true, invited, notFound, members: getChannelMemberSummaries(channel, req.userId) });
+});
+
+app.get('/api/channel/invites', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const invites = db.getPendingChannelInvites(req.userId).map(inv => {
+        const inviter = db.getUserById(inv.inviter_user_id);
+        return {
+            id: inv.id,
+            channel: inv.channel,
+            inviter: inviter ? { id: inviter.id, username: inviter.username, nickname: inviter.nickname || inviter.username } : { username: '该账户已注销' },
+            created_at: inv.created_at
+        };
+    });
+    res.json({ invites });
+});
+
+app.post('/api/channel/invites/:id/respond', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { id } = req.params;
+    const { action } = req.body || {};
+    const result = db.respondChannelInvite(id, req.userId, action);
+    if (!result.ok) {
+        const map = { not_found: '邀请不存在', not_authorized: '无权限操作', already_resolved: '已处理', invalid_action: '无效操作' };
+        return res.status(400).json({ error: map[result.error] || '操作失败' });
+    }
+    if (action === 'accept') {
+        const channel = result.invite.channel;
+        if (isPrivateChannel(channel)) {
+            const cd = db.channels[channel];
+            if (cd && !cd.members.includes(parseInt(result.invite.invited_user_id, 10))) {
+                cd.members.push(parseInt(result.invite.invited_user_id, 10));
+                db.saveData();
+                broadcastChannelPresence(channel);
+            }
+        }
+    }
+    res.json({ success: true });
 });
 
 app.get('/api/channel/:channel/members', authenticateUser, requireAuthenticatedUser, (req, res) => {
@@ -875,8 +928,9 @@ app.get('/api/channel/:channel/members', authenticateUser, requireAuthenticatedU
         return res.status(404).json({ error: 'Channel not found' });
     }
     if (isPrivateChannel(channel)) {
-        if (db.channels[channel].owner_id !== req.userId) {
-            return res.status(403).json({ error: 'Only the channel owner can list members' });
+        const uid = parseInt(req.userId, 10);
+        if (!db.channels[channel].members.includes(uid)) {
+            return res.status(403).json({ error: 'Not a member' });
         }
         return res.json({ members: getChannelMemberSummaries(channel, req.userId) });
     }
