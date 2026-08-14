@@ -57,7 +57,7 @@ function isAllowedOrigin(origin) {
 
 function createRateLimiter(envName, fallbackMax) {
     const requests = new Map();
-    const windowMs = parsePositiveInteger(process.env.JCHAT_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000);
+    const windowMs = parsePositiveInteger(process.env.JCHAT_RATE_LIMIT_WINDOW_MS, 2 * 60 * 1000, 1_000, 24 * 60 * 60 * 1000);
     const max = parsePositiveInteger(process.env[envName], fallbackMax, 1, 10_000);
     const cleanup = () => {
         const now = Date.now();
