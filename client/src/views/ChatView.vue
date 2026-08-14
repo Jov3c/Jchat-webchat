@@ -25,7 +25,7 @@
               </div>
               <div v-if="subtitle" class="head-sub">{{ subtitle }}</div>
               <span class="spacer"></span>
-              <button class="icon-btn" aria-label="搜索">
+              <button class="icon-btn" aria-label="搜索" @click="searchOpen = true">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
               </button>
               <button class="icon-btn" aria-label="更多" @click="openChannelMenu">⋮</button>
@@ -44,6 +44,7 @@
         <MemberList :channel="activeChannel" />
       </aside>
       <ChannelMenu v-if="channelMenuOpen && activeChannel" :channel="activeChannel" @close="channelMenuOpen = false" @changed="onChannelChanged" />
+      <SearchPanel v-if="searchOpen && (activeChannel || activePeerId != null)" :channel="activeChannel" :peer-id="activePeerId" @close="searchOpen = false" />
     </div>
   </div>
 </template>
@@ -58,6 +59,7 @@ import { connectSocket, authenticate } from '../api/socket.js';
 import { applyPresenceUpdate } from '../stores/presence.js';
 import { useChannels, fetchChannels } from '../stores/channels.js';
 import ChannelMenu from '../components/ChannelMenu.vue';
+import SearchPanel from '../components/SearchPanel.vue';
 
 const collapsed = ref(false);
 const activeChannel = ref(null);
@@ -65,6 +67,7 @@ const activePeerId = ref(null);
 const replyTo = ref(null);
 const railRef = ref(null);
 const channelMenuOpen = ref(false);
+const searchOpen = ref(false);
 const channelsState = useChannels();
 
 const title = computed(() => {

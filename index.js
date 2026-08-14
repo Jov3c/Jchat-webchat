@@ -1498,6 +1498,36 @@ app.get('/api/dm/:peerUserId/messages', authenticateUser, requireUser, (req, res
     res.json({ messages });
 });
 
+app.get('/api/messages/:channel/search', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { channel } = req.params;
+    const q = String(req.query.q || '').trim().toLowerCase();
+    if (!q) return res.json({ results: [] });
+    if (!isValidChannel(channel) || !canAccessChannel(channel, req.userId)) return res.status(403).json({ error: 'Access denied' });
+    const results = db.getMessagesByChannel(channel)
+        .filter(m => !m.is_blocked && (m.content || '').toLowerCase().includes(q))
+        .slice(-50)
+        .map(m => {
+            const user = db.getUserById(m.user_id);
+            return { ...m, username: user?.username || '该账户已注销', nickname: user?.nickname || user?.username || '该账户已注销', avatar: user?.avatar || DEFAULT_AVATAR };
+        });
+    res.json({ results });
+});
+
+app.get('/api/dm/:peerUserId/search', authenticateUser, requireUser, (req, res) => {
+    const peerUserId = parseInt(req.params.peerUserId);
+    const q = String(req.query.q || '').trim().toLowerCase();
+    if (!q) return res.json({ results: [] });
+    if (!peerUserId || !db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: 'Not friends' });
+    const results = db.getDmMessagesBetween(req.userId, peerUserId, req.userId)
+        .filter(m => (m.content || '').toLowerCase().includes(q))
+        .slice(-50)
+        .map(m => {
+            const sender = db.getUserById(m.from_user_id);
+            return { ...m, username: sender?.username || '该账户已注销', nickname: sender?.nickname || sender?.username || '该账户已注销', avatar: sender?.avatar || DEFAULT_AVATAR };
+        });
+    res.json({ results });
+});
+
 app.delete('/api/dm/messages/:messageId', authenticateUser, requireUser, (req, res) => {
     const { messageId } = req.params;
     const result = db.deleteDmMessageForUser(messageId, req.userId);
