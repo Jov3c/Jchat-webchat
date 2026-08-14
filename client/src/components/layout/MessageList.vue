@@ -156,16 +156,30 @@ function scrollToUnread() {
 watch(() => [props.channel, props.peerId], load, { immediate: true });
 
 const socket = connectSocket();
-socket.on('messageReceived', (m) => { if (m.channel === props.channel) handleNewMessage(m); });
-socket.on('privateMessageReceived', (m) => {
-  if (m.from_user_id === props.peerId || m.to_user_id === props.peerId) handleNewMessage(m);
-});
-socket.on('messageRecalled', ({ messageId }) => applyRecall(messageId));
-socket.on('dmMessageRecalled', ({ messageId }) => applyRecall(messageId));
 
+function onMessageReceived(m) { if (m.channel === props.channel) handleNewMessage(m); }
+function onPrivateMessageReceived(m) {
+  if (m.from_user_id === props.peerId || m.to_user_id === props.peerId) handleNewMessage(m);
+}
+function onMessageRecalled({ messageId }) { applyRecall(messageId); }
+function onDmMessageRecalled({ messageId }) { applyRecall(messageId); }
 function onDocClick() { if (menu.value.open) closeMenu(); }
-onMounted(() => document.addEventListener('click', onDocClick));
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
+
+onMounted(() => {
+  document.addEventListener('click', onDocClick);
+  socket.on('messageReceived', onMessageReceived);
+  socket.on('privateMessageReceived', onPrivateMessageReceived);
+  socket.on('messageRecalled', onMessageRecalled);
+  socket.on('dmMessageRecalled', onDmMessageRecalled);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick);
+  socket.off('messageReceived', onMessageReceived);
+  socket.off('privateMessageReceived', onPrivateMessageReceived);
+  socket.off('messageRecalled', onMessageRecalled);
+  socket.off('dmMessageRecalled', onDmMessageRecalled);
+});
 </script>
 
 <style scoped>

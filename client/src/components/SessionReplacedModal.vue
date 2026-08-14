@@ -5,8 +5,8 @@
         <div class="sr-title">账号在别处登录</div>
         <div class="sr-text">您的账号已在其他设备登录，当前会话已失效。</div>
         <div class="sr-actions">
-          <button class="sr-ok" @click="logout">确定</button>
-          <button class="sr-relogin" @click="relogin">重新登录</button>
+          <button class="sr-ok" @click="goLogin">确定</button>
+          <button class="sr-relogin" @click="goLogin">重新登录</button>
         </div>
       </div>
     </div>
@@ -19,12 +19,7 @@ import { useSessionReplaced } from '../stores/session.js';
 
 const sessionReplaced = useSessionReplaced();
 
-function logout() {
-  clearLogin();
-  location.href = '/login';
-}
-
-function relogin() {
+function goLogin() {
   clearLogin();
   location.href = '/login';
 }

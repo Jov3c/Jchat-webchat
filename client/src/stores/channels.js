@@ -4,7 +4,6 @@ import { http } from '../api/http.js';
 // 频道列表（含备注/owner 信息）：[{ name, alias, ownerId, isOwner }]
 const state = reactive({ list: [] });
 
-export function setChannels(list) { state.list = list || []; }
 export function useChannels() { return state; }
 export function getChannel(name) { return state.list.find(c => c.name === name); }
 export function setChannelAlias(name, alias) {

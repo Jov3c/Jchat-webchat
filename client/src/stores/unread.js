@@ -18,4 +18,3 @@ export function clearUnread(key) {
 
 export function getUnreadCount(key) { return state.counts[key] || 0; }
 export function getFirstUnreadId(key) { return state.firstUnread[key] || null; }
-export function useUnread() { return state; }

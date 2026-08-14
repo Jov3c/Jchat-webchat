@@ -105,7 +105,7 @@ import { http } from '../../api/http.js';
 import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
 import { openUserCard } from '../../stores/userCard.js';
-import { incrementUnread, clearUnread, getUnreadCount, keyForChannel, keyForDm } from '../../stores/unread.js';
+import { incrementUnread, getUnreadCount, keyForChannel, keyForDm } from '../../stores/unread.js';
 import { fetchChannels } from '../../stores/channels.js';
 import { disconnectSocket, connectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';

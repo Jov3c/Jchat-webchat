@@ -280,17 +280,6 @@ function getUnreadCount(userId, kind, key) {
     return row?.c || 0;
 }
 
-function getFirstUnreadId(userId, kind, key) {
-    const uid = int(userId);
-    const since = getLastReadAt(uid, kind, key) || '';
-    if (kind === 'dm') {
-        const row = sqlite.prepare('SELECT id FROM dm_messages WHERE from_user_id = ? AND to_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 1').get(int(key), uid, since);
-        return row?.id || null;
-    }
-    const row = sqlite.prepare('SELECT id FROM messages WHERE channel = ? AND user_id != ? AND created_at > ? ORDER BY created_at ASC LIMIT 1').get(key, uid, since);
-    return row?.id || null;
-}
-
 function userFromRow(row) {
     if (!row) return null;
     const user = asObject(row);
@@ -738,5 +727,5 @@ module.exports = {
     getChannelAlias, setChannelAlias,
     createChannelInvite, getPendingChannelInvites, respondChannelInvite,
     isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt,
-    getLastReadAt, markRead, getUnreadCount, getFirstUnreadId
+    markRead, getUnreadCount
 };
