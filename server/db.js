@@ -44,6 +44,8 @@ sqlite.exec(`
     content TEXT NOT NULL DEFAULT '',
     image TEXT,
     voice TEXT,
+    file TEXT,
+    file_name TEXT,
     reply_to INTEGER,
     is_blocked INTEGER NOT NULL DEFAULT 0,
     blocked_at TEXT,
@@ -107,6 +109,8 @@ sqlite.exec(`
     content TEXT NOT NULL DEFAULT '',
     image TEXT,
     voice TEXT,
+    file TEXT,
+    file_name TEXT,
     reply_to INTEGER,
     is_recalled INTEGER NOT NULL DEFAULT 0,
     recalled_at TEXT,
@@ -148,6 +152,13 @@ sqlite.exec(`
     PRIMARY KEY (user_id, kind, key),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS reactions (
+    message_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    emoji TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 const channelColumns = sqlite.prepare('PRAGMA table_info(channels)').all();
@@ -170,6 +181,22 @@ if (!userColumns.some(column => column.name === 'encrypted_private_key')) {
 }
 if (!userColumns.some(column => column.name === 'salt')) {
     sqlite.exec('ALTER TABLE users ADD COLUMN salt TEXT');
+}
+
+const messageColumns = sqlite.prepare('PRAGMA table_info(messages)').all();
+if (!messageColumns.some(column => column.name === 'file')) {
+    sqlite.exec('ALTER TABLE messages ADD COLUMN file TEXT');
+}
+if (!messageColumns.some(column => column.name === 'file_name')) {
+    sqlite.exec('ALTER TABLE messages ADD COLUMN file_name TEXT');
+}
+
+const dmColumns = sqlite.prepare('PRAGMA table_info(dm_messages)').all();
+if (!dmColumns.some(column => column.name === 'file')) {
+    sqlite.exec('ALTER TABLE dm_messages ADD COLUMN file TEXT');
+}
+if (!dmColumns.some(column => column.name === 'file_name')) {
+    sqlite.exec('ALTER TABLE dm_messages ADD COLUMN file_name TEXT');
 }
 
 const users = [];
@@ -290,6 +317,28 @@ function getUnreadCount(userId, kind, key) {
     }
     const row = sqlite.prepare('SELECT COUNT(*) AS c FROM messages WHERE channel = ? AND user_id != ? AND created_at > ?').get(key, uid, since);
     return row?.c || 0;
+}
+
+function getReactions(messageId) {
+    const rows = sqlite.prepare('SELECT user_id, emoji FROM reactions WHERE message_id = ?').all(int(messageId));
+    const byEmoji = {};
+    for (const r of rows) {
+        if (!byEmoji[r.emoji]) byEmoji[r.emoji] = [];
+        byEmoji[r.emoji].push(int(r.user_id));
+    }
+    return Object.entries(byEmoji).map(([emoji, userIds]) => ({ emoji, count: userIds.length, userIds }));
+}
+
+function toggleReaction(messageId, userId, emoji) {
+    const mid = int(messageId), uid = int(userId);
+    if (!validInt(mid) || !validInt(uid) || typeof emoji !== 'string' || !emoji) return null;
+    const existing = sqlite.prepare('SELECT emoji FROM reactions WHERE message_id = ? AND user_id = ?').get(mid, uid);
+    if (existing && existing.emoji === emoji) {
+        sqlite.prepare('DELETE FROM reactions WHERE message_id = ? AND user_id = ?').run(mid, uid);
+    } else {
+        sqlite.prepare('INSERT INTO reactions(message_id, user_id, emoji) VALUES (?, ?, ?) ON CONFLICT(message_id, user_id) DO UPDATE SET emoji = excluded.emoji').run(mid, uid, emoji);
+    }
+    return getReactions(mid);
 }
 
 function userFromRow(row) {
@@ -529,10 +578,11 @@ function getMessageById(id) { return messages.find(message => message.id === int
 function insertMessage(messageData) {
     const blocked = messageData.is_blocked ? 1 : 0;
     const result = sqlite.prepare(`INSERT INTO messages
-      (user_id, channel, content, image, voice, reply_to, is_blocked, blocked_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      (user_id, channel, content, image, voice, file, file_name, reply_to, is_blocked, blocked_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         int(messageData.user_id), messageData.channel, messageData.content || '', messageData.image || null,
-        messageData.voice || null, messageData.reply_to || null, blocked, blocked ? nowIso() : null, nowIso()
+        messageData.voice || null, messageData.file || null, messageData.file_name || null,
+        messageData.reply_to || null, blocked, blocked ? nowIso() : null, nowIso()
     );
     refreshCaches();
     return getMessageById(Number(result.lastInsertRowid));
@@ -680,11 +730,11 @@ function getDmMessagesBetween(userIdA, userIdB, viewerUserId) {
     return sqlite.prepare(`SELECT * FROM dm_messages WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?) ORDER BY id`).all(a, b, b, a).map(dmFromRow).filter(message => !message.deleted_for.includes(viewer));
 }
 function getDmMessageById(id) { return dmFromRow(sqlite.prepare('SELECT * FROM dm_messages WHERE id = ?').get(int(id))); }
-function insertDmMessage({ from_user_id, to_user_id, content, image, voice, reply_to }) {
+function insertDmMessage({ from_user_id, to_user_id, content, image, voice, file, file_name, reply_to }) {
     const fromId = int(from_user_id); const toId = int(to_user_id); if (!normalizePair(fromId, toId)) return null;
     const raw = content || '';
     const stored = (typeof raw === 'string' && raw.startsWith('e2ee:')) ? raw : dmCrypto.encrypt(raw);
-    const result = sqlite.prepare(`INSERT INTO dm_messages(from_user_id, to_user_id, content, image, voice, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(fromId, toId, stored, image || null, voice || null, reply_to != null ? int(reply_to) : null, nowIso());
+    const result = sqlite.prepare(`INSERT INTO dm_messages(from_user_id, to_user_id, content, image, voice, file, file_name, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(fromId, toId, stored, image || null, voice || null, file || null, file_name || null, reply_to != null ? int(reply_to) : null, nowIso());
     return getDmMessageById(Number(result.lastInsertRowid));
 }
 function updateDmMessage(id, updates) {
@@ -742,5 +792,5 @@ module.exports = {
     getChannelAlias, setChannelAlias,
     createChannelInvite, getPendingChannelInvites, respondChannelInvite,
     isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt,
-    markRead, getUnreadCount
+    markRead, getUnreadCount, getReactions, toggleReaction
 };

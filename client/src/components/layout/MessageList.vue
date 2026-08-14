@@ -182,6 +182,10 @@ function onPrivateMessageReceived(m) {
 }
 function onMessageRecalled({ messageId }) { applyRecall(messageId); }
 function onDmMessageRecalled({ messageId }) { applyRecall(messageId); }
+function onMessageReaction({ messageId, reactions }) {
+  const i = messages.value.findIndex(x => x.id === messageId);
+  if (i >= 0) messages.value[i] = { ...messages.value[i], reactions };
+}
 function onDocClick() { if (menu.value.open) closeMenu(); }
 
 onMounted(() => {
@@ -190,6 +194,7 @@ onMounted(() => {
   socket.on('privateMessageReceived', onPrivateMessageReceived);
   socket.on('messageRecalled', onMessageRecalled);
   socket.on('dmMessageRecalled', onDmMessageRecalled);
+  socket.on('messageReaction', onMessageReaction);
 });
 
 onBeforeUnmount(() => {
@@ -198,6 +203,7 @@ onBeforeUnmount(() => {
   socket.off('privateMessageReceived', onPrivateMessageReceived);
   socket.off('messageRecalled', onMessageRecalled);
   socket.off('dmMessageRecalled', onDmMessageRecalled);
+  socket.off('messageReaction', onMessageReaction);
 });
 </script>
 

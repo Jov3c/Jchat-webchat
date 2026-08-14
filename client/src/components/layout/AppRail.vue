@@ -32,7 +32,9 @@
         <div v-if="sections.channels" class="section-body">
           <div v-for="c in sortedChannels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" :title="'#' + (c.alias || c.name)">
             <span class="hash">#</span><span class="label">{{ c.alias || c.name }}</span>
-            <button v-if="c.ownerId != null" class="pin-btn" :class="{ on: c.pinned }" @click.stop="togglePin('channel', c.name, !c.pinned)" :title="c.pinned ? '取消置顶' : '置顶'">📌</button>
+            <button v-if="c.ownerId != null" class="pin-btn" :class="{ on: c.pinned }" @click.stop="togglePin('channel', c.name, !c.pinned)" :title="c.pinned ? '取消置顶' : '置顶'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+            </button>
             <span v-if="chanUnread(c)" class="unread-badge">{{ chanUnread(c) }}</span>
           </div>
         </div>
@@ -53,7 +55,9 @@
               <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
             </span>
             <span class="name">{{ f.nickname || f.username }}</span>
-            <button class="pin-btn" :class="{ on: f.pinned }" @click.stop="togglePin('dm', f.id, !f.pinned)" :title="f.pinned ? '取消置顶' : '置顶'">📌</button>
+            <button class="pin-btn" :class="{ on: f.pinned }" @click.stop="togglePin('dm', f.id, !f.pinned)" :title="f.pinned ? '取消置顶' : '置顶'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+            </button>
             <span v-if="dmUnread(f)" class="unread-badge">{{ dmUnread(f) }}</span>
           </div>
         </div>

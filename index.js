@@ -1218,6 +1218,21 @@ app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, upload
     }
 });
 
+app.post('/api/upload/file', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'File is required' });
+    try {
+        const originalName = req.file.originalname || 'file';
+        const safeName = 'file-' + req.file.filename;
+        const destPath = path.join(__dirname, 'public', 'uploads', safeName);
+        fs.renameSync(req.file.path, destPath);
+        res.json({ success: true, file: 'uploads/' + safeName, file_name: originalName });
+    } catch (error) {
+        console.error('File upload failed:', error);
+        cleanupUploadedFiles(req);
+        res.status(500).json({ error: 'File upload error' });
+    }
+});
+
 app.get('/api/admin/logs/list', authenticateAdmin, (req, res) => {
     const fs = require('fs');
     const path = require('path');
@@ -1393,7 +1408,8 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
             username: user?.username || '该账户已注销',
             nickname: user?.nickname || user?.username || '该账户已注销',
             avatar: user?.avatar || DEFAULT_AVATAR,
-            reply_info: null
+            reply_info: null,
+            reactions: db.getReactions(msg.id)
         };
 
         if (msg.reply_to) {
@@ -1415,6 +1431,17 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
     });
 
     res.json(messagesWithUserInfo);
+});
+
+app.post('/api/messages/:messageId/reaction', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { messageId } = req.params;
+    const { emoji } = req.body || {};
+    const message = db.getMessageById(messageId);
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+    if (!canAccessChannel(message.channel, req.userId)) return res.status(403).json({ error: 'Access denied' });
+    const reactions = db.toggleReaction(messageId, req.userId, emoji);
+    io.to(message.channel).emit('messageReaction', { messageId: parseInt(messageId), reactions });
+    res.json({ success: true, reactions });
 });
 
 app.get('/api/friends', authenticateUser, requireUser, (req, res) => {
@@ -1720,7 +1747,7 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', (data) => {
         console.log('接收到sendMessage事件:', data);
-        const { channel, content, image, voice } = data || {};
+        const { channel, content, image, voice, file, file_name } = data || {};
         const userId = getAuthenticatedUserId();
 
         const user = db.getUserById(userId);
@@ -1761,6 +1788,8 @@ io.on('connection', (socket) => {
             content,
             image,
             voice: data.voice,
+            file: data.file,
+            file_name: data.file_name,
             reply_to: data.reply_to,
             is_blocked: containsBadWords
         });
@@ -1772,6 +1801,8 @@ io.on('connection', (socket) => {
             content: content,
             image: image,
             voice: newMessage.voice,
+            file: newMessage.file,
+            file_name: newMessage.file_name,
             created_at: newMessage.created_at,
             username: user.username,
             nickname: user.nickname || user.username,
@@ -1822,7 +1853,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('sendPrivateMessage', (data) => {
-        const { toUserId, content, image, voice, reply_to } = data || {};
+        const { toUserId, content, image, voice, file, file_name, reply_to } = data || {};
         const fromId = getAuthenticatedUserId();
         const toId = parseInt(toUserId);
         if (!fromId) {
@@ -1849,6 +1880,8 @@ io.on('connection', (socket) => {
             content,
             image,
             voice,
+            file,
+            file_name,
             reply_to: reply_to != null ? reply_to : undefined
         });
         if (!newMessage) return;
