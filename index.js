@@ -108,7 +108,7 @@ if (process.env.NODE_ENV === 'production' && (JWT_SECRET === DEFAULT_JWT_SECRET 
     throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
 }
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
-const CHANNELS = ['公共频道1', '公共频道2'];
+const CHANNELS = ['公共频道'];
 const REGISTRATION_ENABLED = true;
 const VERSION = 'beta v2.2.0';
 

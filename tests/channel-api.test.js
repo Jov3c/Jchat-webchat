@@ -9,7 +9,7 @@ const test = require('node:test');
 const { DatabaseSync } = require('node:sqlite');
 const WebSocket = require('ws');
 
-const PUBLIC_CHANNELS = ['公共频道1', '公共频道2'];
+const PUBLIC_CHANNELS = ['公共频道'];
 
 function getFreePort() {
     return new Promise((resolve, reject) => {
