@@ -40,6 +40,24 @@
             <button class="em-cancel" @click="close">取消</button>
             <button class="em-save" @click="save" :disabled="saving">保存</button>
           </div>
+
+          <div class="em-divider"></div>
+          <div class="em-pw-title">修改密码</div>
+          <label class="em-field">
+            <span>当前密码</span>
+            <input v-model="curPw" type="password" placeholder="当前密码" />
+          </label>
+          <label class="em-field">
+            <span>新密码</span>
+            <input v-model="newPw" type="password" placeholder="新密码（至少 6 位，含字母和数字）" />
+          </label>
+          <label class="em-field">
+            <span>确认新密码</span>
+            <input v-model="confirmPw" type="password" placeholder="再次输入新密码" />
+          </label>
+          <p v-if="pwError" class="em-error">{{ pwError }}</p>
+          <p v-if="pwMsg" class="em-ok">{{ pwMsg }}</p>
+          <button class="em-change-pw" @click="changePassword" :disabled="pwSaving">修改密码</button>
         </div>
       </div>
     </Transition>
@@ -50,6 +68,7 @@
 import { ref, onMounted } from 'vue';
 import { http } from '../api/http.js';
 import { getUser, updateUser, getToken } from '../stores/auth.js';
+import { rewrapKeys } from '../stores/keys.js';
 import Avatar from './Avatar.vue';
 
 const emit = defineEmits(['close', 'saved']);
@@ -60,9 +79,40 @@ const msg = ref('');
 const saving = ref(false);
 const nickInput = ref(null);
 
+const curPw = ref('');
+const newPw = ref('');
+const confirmPw = ref('');
+const pwError = ref('');
+const pwMsg = ref('');
+const pwSaving = ref(false);
+
 onMounted(() => { nickInput.value?.focus(); });
 
 function close() { emit('close'); }
+
+async function changePassword() {
+  pwError.value = '';
+  pwMsg.value = '';
+  if (newPw.value.length < 6 || newPw.value.length > 128) { pwError.value = '新密码需 6-128 位'; return; }
+  if (!/[a-zA-Z]/.test(newPw.value) || !/[0-9]/.test(newPw.value)) { pwError.value = '新密码须包含字母和数字'; return; }
+  if (newPw.value !== confirmPw.value) { pwError.value = '两次输入的新密码不一致'; return; }
+  pwSaving.value = true;
+  try {
+    const rewrap = await rewrapKeys(newPw.value);
+    const body = { currentPassword: curPw.value, newPassword: newPw.value };
+    if (rewrap) {
+      body.salt = rewrap.salt;
+      body.encrypted_private_key = rewrap.encrypted_private_key;
+    }
+    await http.post('/api/change-password', body);
+    pwMsg.value = '密码已修改';
+    curPw.value = ''; newPw.value = ''; confirmPw.value = '';
+  } catch (e) {
+    pwError.value = e.message || '修改失败';
+  } finally {
+    pwSaving.value = false;
+  }
+}
 
 async function save() {
   error.value = '';
@@ -142,6 +192,11 @@ async function onAvatarChange(e) {
 .em-save:disabled { opacity: 0.6; cursor: default; }
 .em-error { color: var(--red); font-size: 12px; margin-top: 4px; }
 .em-ok { color: var(--green); font-size: 12px; margin-top: 4px; }
+.em-divider { height: 1px; background: var(--border); margin: 16px 0 12px; }
+.em-pw-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+.em-change-pw { width: 100%; padding: 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); font-size: 13px; cursor: pointer; }
+.em-change-pw:hover { background: var(--hover); }
+.em-change-pw:disabled { opacity: 0.6; cursor: default; }
 
 .em-enter-active, .em-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
 .em-enter-from, .em-leave-to { opacity: 0; transform: scale(0.96); }

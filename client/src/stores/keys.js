@@ -67,3 +67,13 @@ export async function getOrDeriveMessageKey(peerId, peerPublicKeyJwk) {
   state.messageKeys[peerId] = key;
   return key;
 }
+
+// 改密码时用新密码重锁私钥，返回新的盐与加密私钥
+export async function rewrapKeys(newPassword) {
+  if (!state.ready || !state.myPrivateKey) return null;
+  const salt = randomSalt();
+  const kek = await deriveKek(newPassword, salt);
+  const encryptedPrivateKey = await wrapPrivateKey(state.myPrivateKey, kek);
+  state.kek = kek;
+  return { salt: bufToB64(salt.buffer), encrypted_private_key: encryptedPrivateKey };
+}

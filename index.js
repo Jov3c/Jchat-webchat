@@ -1071,7 +1071,7 @@ app.put('/api/profile/:userId', authenticateUser, requireUser, (req, res) => {
     res.json({ success: true });
 });
 app.post('/api/change-password', async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, salt, encrypted_private_key } = req.body;
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
@@ -1094,7 +1094,10 @@ app.post('/api/change-password', async (req, res) => {
             return res.status(401).json({ error: '当前密码错误', success: false });
         }
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        const updatedUser = db.updateUser(userId, { password: hashedPassword });
+        const updates = { password: hashedPassword };
+        if (salt !== undefined) updates.salt = salt;
+        if (encrypted_private_key !== undefined) updates.encrypted_private_key = encrypted_private_key;
+        const updatedUser = db.updateUser(userId, updates);
         if (!updatedUser) {
             return res.status(500).json({ error: 'Failed to update password', success: false });
         }
