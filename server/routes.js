@@ -1,7 +1,6 @@
 // REST 路由：按域注册所有 HTTP 接口
 const db = require('./db');
 const logger = require('./log');
-const badWordsFilter = require('./badwords');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
