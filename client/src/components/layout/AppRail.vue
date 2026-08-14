@@ -103,6 +103,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
+import { clearKeys } from '../../stores/keys.js';
+import { setFriends } from '../../stores/friends.js';
 import { getLivePresence } from '../../stores/presence.js';
 import { openUserCard } from '../../stores/userCard.js';
 import { incrementUnread, getUnreadCount, keyForChannel, keyForDm } from '../../stores/unread.js';
@@ -217,7 +219,7 @@ function setStatus(value) {
 }
 
 function confirmLogout() { statusOpen.value = false; logoutOpen.value = true; }
-function doLogout() { disconnectSocket(); clearLogin(); router.push('/login'); }
+function doLogout() { disconnectSocket(); clearLogin(); clearKeys(); router.push('/login'); }
 
 // 无操作 30 分钟后自动切到「离开」（仅当当前为在线时）；检测到活动自动切回「在线」
 const IDLE_MS = 30 * 60 * 1000;
@@ -245,6 +247,7 @@ async function reloadFriends() {
   try {
     const frs = await http.get('/api/friends');
     friends.value = frs.friends || frs || [];
+    setFriends(friends.value);
   } catch { /* 忽略 */ }
 }
 

@@ -26,6 +26,9 @@ sqlite.exec(`
     allow_add_friend_from_profile INTEGER NOT NULL DEFAULT 1,
     presence_status TEXT NOT NULL DEFAULT 'online',
     active_session_id TEXT,
+    public_key TEXT,
+    encrypted_private_key TEXT,
+    salt TEXT,
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS channels (
@@ -158,6 +161,15 @@ if (!userColumns.some(column => column.name === 'presence_status')) {
 }
 if (!userColumns.some(column => column.name === 'active_session_id')) {
     sqlite.exec('ALTER TABLE users ADD COLUMN active_session_id TEXT');
+}
+if (!userColumns.some(column => column.name === 'public_key')) {
+    sqlite.exec('ALTER TABLE users ADD COLUMN public_key TEXT');
+}
+if (!userColumns.some(column => column.name === 'encrypted_private_key')) {
+    sqlite.exec('ALTER TABLE users ADD COLUMN encrypted_private_key TEXT');
+}
+if (!userColumns.some(column => column.name === 'salt')) {
+    sqlite.exec('ALTER TABLE users ADD COLUMN salt TEXT');
 }
 
 const users = [];
@@ -299,7 +311,8 @@ function messageFromRow(row) {
 function dmFromRow(row) {
     if (!row) return null;
     const message = asObject(row);
-    message.content = dmCrypto.decrypt(message.content);
+    const raw = message.content;
+    message.content = (typeof raw === 'string' && raw.startsWith('e2ee:')) ? raw : dmCrypto.decrypt(raw);
     message.is_recalled = asBool(message.is_recalled);
     try { message.deleted_for = JSON.parse(message.deleted_for || '[]'); } catch { message.deleted_for = []; }
     return message;
@@ -450,7 +463,7 @@ function insertUser(userData) {
 function updateUser(id, userData) {
     const userId = int(id);
     if (!getUserById(userId)) return null;
-    const allowed = ['username', 'password', 'email', 'nickname', 'avatar', 'bio', 'gender', 'banned', 'allow_add_friend_from_profile', 'presence_status'];
+    const allowed = ['username', 'password', 'email', 'nickname', 'avatar', 'bio', 'gender', 'banned', 'allow_add_friend_from_profile', 'presence_status', 'public_key', 'encrypted_private_key', 'salt'];
     const entries = Object.entries(userData).filter(([key]) => allowed.includes(key));
     if (!entries.length) return getUserById(userId);
     const values = entries.map(([, value]) => value === null ? null : value === true ? 1 : value === false ? 0 : value);
@@ -669,7 +682,9 @@ function getDmMessagesBetween(userIdA, userIdB, viewerUserId) {
 function getDmMessageById(id) { return dmFromRow(sqlite.prepare('SELECT * FROM dm_messages WHERE id = ?').get(int(id))); }
 function insertDmMessage({ from_user_id, to_user_id, content, image, voice, reply_to }) {
     const fromId = int(from_user_id); const toId = int(to_user_id); if (!normalizePair(fromId, toId)) return null;
-    const result = sqlite.prepare(`INSERT INTO dm_messages(from_user_id, to_user_id, content, image, voice, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(fromId, toId, dmCrypto.encrypt(content || ''), image || null, voice || null, reply_to != null ? int(reply_to) : null, nowIso());
+    const raw = content || '';
+    const stored = (typeof raw === 'string' && raw.startsWith('e2ee:')) ? raw : dmCrypto.encrypt(raw);
+    const result = sqlite.prepare(`INSERT INTO dm_messages(from_user_id, to_user_id, content, image, voice, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(fromId, toId, stored, image || null, voice || null, reply_to != null ? int(reply_to) : null, nowIso());
     return getDmMessageById(Number(result.lastInsertRowid));
 }
 function updateDmMessage(id, updates) {

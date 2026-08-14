@@ -31,6 +31,9 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { getSocket } from '../../api/socket.js';
+import { getFriendPublicKey } from '../../stores/friends.js';
+import { useKeys, getOrDeriveMessageKey } from '../../stores/keys.js';
+import { encryptMessage } from '../../stores/e2ee.js';
 
 const props = defineProps({ channel: String, peerId: Number, replyTo: Object });
 const emit = defineEmits(['clear-reply']);
@@ -42,12 +45,18 @@ const placeholder = computed(() => {
   return '发送消息';
 });
 
-function send() {
+async function send() {
   const value = text.value.trim(); if (!value) return;
   const socket = getSocket();
   const reply_to = props.replyTo?.id ?? undefined;
   if (props.peerId != null) {
-    socket.emit('sendPrivateMessage', { toUserId: props.peerId, content: value, reply_to });
+    let content = value;
+    const peerPub = getFriendPublicKey(props.peerId);
+    if (peerPub && useKeys().ready) {
+      const key = await getOrDeriveMessageKey(props.peerId, peerPub);
+      content = 'e2ee:' + await encryptMessage(value, key);
+    }
+    socket.emit('sendPrivateMessage', { toUserId: props.peerId, content, reply_to });
   } else if (props.channel) {
     socket.emit('sendMessage', { channel: props.channel, content: value, reply_to });
   }

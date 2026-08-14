@@ -28,6 +28,9 @@ import { http } from '../../api/http.js';
 import { connectSocket } from '../../api/socket.js';
 import { getUser } from '../../stores/auth.js';
 import { getFirstUnreadId, clearUnread, keyForChannel, keyForDm } from '../../stores/unread.js';
+import { getFriendPublicKey } from '../../stores/friends.js';
+import { useKeys, getOrDeriveMessageKey } from '../../stores/keys.js';
+import { decryptMessage } from '../../stores/e2ee.js';
 import MessageBubble from '../MessageBubble.vue';
 
 const props = defineProps({ channel: String, peerId: Number });
@@ -127,6 +130,19 @@ function applyRecall(messageId) {
   if (i >= 0) messages.value[i] = { ...messages.value[i], is_recalled: 1, content: '消息已撤回', image: null, voice: null };
 }
 
+async function decryptDmContent(m) {
+  if (typeof m.content !== 'string' || !m.content.startsWith('e2ee:')) return m;
+  if (props.peerId == null || !useKeys().ready) return m;
+  const peerPub = getFriendPublicKey(props.peerId);
+  if (!peerPub) return m;
+  try {
+    const key = await getOrDeriveMessageKey(props.peerId, peerPub);
+    const plain = await decryptMessage(m.content.slice(5), key);
+    if (plain != null) return { ...m, content: plain };
+  } catch { /* 解密失败则保持原样 */ }
+  return m;
+}
+
 async function load() {
   messages.value = [];
   showJump.value = false;
@@ -135,7 +151,8 @@ async function load() {
   const firstUnread = getFirstUnreadId(key);
   if (props.peerId != null) {
     const data = await http.get(`/api/dm/${props.peerId}/messages`);
-    messages.value = data.messages || data || [];
+    const raw = data.messages || data || [];
+    messages.value = await Promise.all(raw.map(decryptDmContent));
   } else if (props.channel) {
     const data = await http.get(`/api/messages/${props.channel}`);
     messages.value = data.messages || data || [];
@@ -159,7 +176,9 @@ const socket = connectSocket();
 
 function onMessageReceived(m) { if (m.channel === props.channel) handleNewMessage(m); }
 function onPrivateMessageReceived(m) {
-  if (m.from_user_id === props.peerId || m.to_user_id === props.peerId) handleNewMessage(m);
+  if (m.from_user_id === props.peerId || m.to_user_id === props.peerId) {
+    decryptDmContent(m).then(handleNewMessage);
+  }
 }
 function onMessageRecalled({ messageId }) { applyRecall(messageId); }
 function onDmMessageRecalled({ messageId }) { applyRecall(messageId); }

@@ -17,6 +17,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { http } from '../api/http.js';
 import { storeLogin } from '../stores/auth.js';
+import { setupKeys } from '../stores/keys.js';
 
 const router = useRouter();
 const username = ref(''); const password = ref('');
@@ -27,6 +28,7 @@ async function submit() {
   try {
     const data = await http.post('/api/login', { username: username.value, password: password.value });
     storeLogin(data);
+    await setupKeys(password.value, data);
     router.push('/');
   } catch (e) {
     error.value = e.message || '登录失败';

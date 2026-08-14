@@ -19,6 +19,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { http } from '../api/http.js';
 import { storeLogin } from '../stores/auth.js';
+import { setupKeys } from '../stores/keys.js';
 
 const router = useRouter();
 const account = ref(''); const nickname = ref(''); const password = ref(''); const confirm = ref('');
@@ -48,6 +49,7 @@ async function submit() {
       password: password.value
     });
     storeLogin(data);
+    await setupKeys(password.value, data);
     router.push('/');
   } catch (e) {
     error.value = e.message || '注册失败';

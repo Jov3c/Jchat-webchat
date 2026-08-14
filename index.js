@@ -549,6 +549,17 @@ app.post('/api/read', authenticateUser, requireAuthenticatedUser, (req, res) => 
     res.json({ success: true });
 });
 
+app.put('/api/profile/keys', authenticateUser, requireUser, (req, res) => {
+    const { public_key, encrypted_private_key, salt } = req.body || {};
+    const updates = {};
+    if (public_key !== undefined) updates.public_key = public_key;
+    if (encrypted_private_key !== undefined) updates.encrypted_private_key = encrypted_private_key;
+    if (salt !== undefined) updates.salt = salt;
+    if (!Object.keys(updates).length) return res.json({ success: true });
+    db.updateUser(req.userId, updates);
+    res.json({ success: true });
+});
+
 app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
     if (!isPrivateChannel(channel)) return res.status(400).json({ error: '公共频道无法退出' });
@@ -663,7 +674,10 @@ app.post('/api/login', loginRateLimiter, async (req, res) => {
             avatar: user.avatar,
             bio: user.bio,
             gender: user.gender,
-            presence_status: user.presence_status || 'online'
+            presence_status: user.presence_status || 'online',
+            salt: user.salt || null,
+            public_key: user.public_key || null,
+            encrypted_private_key: user.encrypted_private_key || null
         });
 
     } catch (error) {
@@ -1409,7 +1423,8 @@ app.get('/api/friends', authenticateUser, requireUser, (req, res) => {
             presence_status: user ? presence.effectiveStatus(req.userId, user) : 'offline',
             last_message_at: db.getLastDmMessageAt(uid, friend.id),
             pinned: db.isPinned(uid, 'dm', String(friend.id)),
-            unread_count: db.getUnreadCount(uid, 'dm', String(friend.id))
+            unread_count: db.getUnreadCount(uid, 'dm', String(friend.id)),
+            public_key: user?.public_key || null
         };
     });
     res.json({ friends: list });
