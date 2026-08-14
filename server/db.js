@@ -112,6 +112,13 @@ sqlite.exec(`
     FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS channel_aliases (
+    user_id INTEGER NOT NULL,
+    channel TEXT NOT NULL,
+    alias TEXT NOT NULL,
+    PRIMARY KEY (user_id, channel),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 const channelColumns = sqlite.prepare('PRAGMA table_info(channels)').all();
@@ -133,12 +140,38 @@ const channels = {};
 const friends = [];
 const friendRequests = [];
 const deactivationRequests = [];
+const channelAliases = new Map(); // key: `${userId}:${channel}` → alias
 
 const asObject = row => (row ? { ...row } : null);
 const asBool = value => value === true || value === 1 || value === '1';
 const int = value => Number.parseInt(value, 10);
 const validInt = value => Number.isInteger(value) && !Number.isNaN(value);
 const nowIso = () => new Date().toISOString();
+
+function loadChannelAliases() {
+    channelAliases.clear();
+    for (const row of sqlite.prepare('SELECT * FROM channel_aliases').all()) {
+        channelAliases.set(`${int(row.user_id)}:${row.channel}`, row.alias);
+    }
+}
+loadChannelAliases();
+
+function getChannelAlias(userId, channel) {
+    return channelAliases.get(`${int(userId)}:${channel}`) || null;
+}
+
+function setChannelAlias(userId, channel, alias) {
+    const uid = int(userId);
+    const key = `${uid}:${channel}`;
+    const value = alias == null ? '' : String(alias).trim();
+    if (!value) {
+        channelAliases.delete(key);
+        sqlite.prepare('DELETE FROM channel_aliases WHERE user_id = ? AND channel = ?').run(uid, channel);
+    } else {
+        channelAliases.set(key, value);
+        sqlite.prepare('INSERT INTO channel_aliases(user_id, channel, alias) VALUES (?, ?, ?) ON CONFLICT(user_id, channel) DO UPDATE SET alias = excluded.alias').run(uid, channel, value);
+    }
+}
 
 function userFromRow(row) {
     if (!row) return null;
@@ -583,5 +616,6 @@ module.exports = {
     updateDmMessage, insertDmMessage, deleteDmMessage, removeRecalledDmMessageById,
     deleteDmMessageForUser, clearDmConversationForUser, getConversationKey, saveData,
     resetAllMessages, getChannelClearTime, setChannelClearTime, getDmClearTime, setDmClearTime,
-    clearDmDataBetween, isBlocked, addBlock, removeBlock, getBlockedUserIds
+    clearDmDataBetween, isBlocked, addBlock, removeBlock, getBlockedUserIds,
+    getChannelAlias, setChannelAlias
 };

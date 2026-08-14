@@ -23,12 +23,15 @@
       <div class="section-head" @click="toggleSection('channels')">
         <span class="chevron" :class="{ open: sections.channels }">▾</span>
         <span class="section-label">频道</span>
-        <button class="section-add" @click.stop="channelOpen = true" title="创建频道">+</button>
+        <span class="add-wrap" @click.stop="channelOpen = true">
+          <button class="section-add" title="创建频道">+</button>
+          <span v-if="channelInviteNotice" class="add-dot"></span>
+        </span>
       </div>
       <Transition name="fold">
         <div v-if="sections.channels" class="section-body">
-          <div v-for="c in channels" :key="c" class="chan" :class="{ 'is-active': c === activeChannel }" @click="selectChannel(c)" :title="'#' + c">
-            <span class="hash">#</span><span class="label">{{ c }}</span>
+          <div v-for="c in channels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" :title="'#' + (c.alias || c.name)">
+            <span class="hash">#</span><span class="label">{{ c.alias || c.name }}</span>
           </div>
         </div>
       </Transition>
@@ -36,8 +39,10 @@
       <div class="section-head" @click="toggleSection('friends')">
         <span class="chevron" :class="{ open: sections.friends }">▾</span>
         <span class="section-label">好友</span>
-        <span v-if="requestCount" class="req-badge">{{ requestCount }}</span>
-        <button class="section-add" @click.stop="friendOpen = true" title="管理好友">+</button>
+        <span class="add-wrap" @click.stop="friendOpen = true">
+          <button class="section-add" title="管理好友">+</button>
+          <span v-if="requestCount" class="add-dot"></span>
+        </span>
       </div>
       <Transition name="fold">
         <div v-if="sections.friends" class="section-body">
@@ -98,6 +103,7 @@ import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
 import { openUserCard } from '../../stores/userCard.js';
 import { useUnread, incrementUnread, clearUnread } from '../../stores/unread.js';
+import { fetchChannels } from '../../stores/channels.js';
 import { disconnectSocket, connectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';
 import CreateChannel from '../CreateChannel.vue';
@@ -118,6 +124,7 @@ const logoutOpen = ref(false);
 const channelOpen = ref(false);
 const friendOpen = ref(false);
 const editOpen = ref(false);
+const channelInviteNotice = ref(false);
 const autoAway = ref(false);
 const me = ref(getUser() || {});
 const sections = ref({ channels: true, friends: true });
@@ -182,10 +189,7 @@ function resetIdle() {
 }
 
 async function reloadChannels() {
-  try {
-    const chs = await http.get('/api/channels');
-    channels.value = chs.channels || chs || [];
-  } catch { /* 忽略 */ }
+  channels.value = await fetchChannels();
 }
 
 async function reloadFriends() {
@@ -234,6 +238,10 @@ onMounted(async () => {
     if (m.to_user_id === me.value.id && m.from_user_id !== props.activePeerId) {
       incrementUnread(m.from_user_id);
     }
+  });
+  socket.on('channelInvited', () => {
+    channelInviteNotice.value = true;
+    reloadChannels();
   });
 });
 onBeforeUnmount(unbindIdle);
@@ -296,10 +304,8 @@ onBeforeUnmount(unbindIdle);
   display: grid; place-items: center;
 }
 .section-add:hover { background: var(--hover); color: var(--text); }
-.req-badge {
-  flex: none; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
-  background: var(--red); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
-}
+.add-wrap { position: relative; display: inline-flex; flex: none; }
+.add-dot { position: absolute; top: 1px; right: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
 .section-body { display: flex; flex-direction: column; gap: 1px; }
 .fold-enter-active, .fold-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .fold-enter-from, .fold-leave-to { opacity: 0; transform: translateY(-4px); }
@@ -378,7 +384,7 @@ onBeforeUnmount(unbindIdle);
 .rail.collapsed .search { display: none; }
 .rail.collapsed .rail-scroll { padding: 0 8px 12px; }
 .rail.collapsed .section-head { justify-content: center; padding: 8px 0 6px; }
-.rail.collapsed .section-head .chevron, .rail.collapsed .section-head .section-label, .rail.collapsed .section-head .section-add, .rail.collapsed .section-head .req-badge { display: none; }
+.rail.collapsed .section-head .chevron, .rail.collapsed .section-head .section-label, .rail.collapsed .section-head .add-wrap { display: none; }
 .rail.collapsed .chan { justify-content: center; padding: 11px 0; }
 .rail.collapsed .chan .label { display: none; }
 .rail.collapsed .chan .hash { font-size: 15px; }

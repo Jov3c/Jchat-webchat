@@ -28,7 +28,7 @@
               <button class="icon-btn" aria-label="搜索">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
               </button>
-              <button class="icon-btn" aria-label="更多">⋮</button>
+              <button class="icon-btn" aria-label="更多" @click="openChannelMenu">⋮</button>
             </header>
             <MessageList :channel="activeChannel" :peer-id="activePeerId" @reply="replyTo = $event" />
             <Composer :channel="activeChannel" :peer-id="activePeerId" :reply-to="replyTo" @clear-reply="replyTo = null" />
@@ -43,6 +43,7 @@
       <aside class="aside">
         <MemberList :channel="activeChannel" />
       </aside>
+      <ChannelMenu v-if="channelMenuOpen && activeChannel" :channel="activeChannel" @close="channelMenuOpen = false" @changed="onChannelChanged" />
     </div>
   </div>
 </template>
@@ -55,15 +56,22 @@ import Composer from '../components/layout/Composer.vue';
 import MemberList from '../components/layout/MemberList.vue';
 import { connectSocket, authenticate } from '../api/socket.js';
 import { applyPresenceUpdate } from '../stores/presence.js';
+import { useChannels, fetchChannels } from '../stores/channels.js';
+import ChannelMenu from '../components/ChannelMenu.vue';
 
 const collapsed = ref(false);
 const activeChannel = ref(null);
 const activePeerId = ref(null);
 const replyTo = ref(null);
 const railRef = ref(null);
+const channelMenuOpen = ref(false);
+const channelsState = useChannels();
 
 const title = computed(() => {
-  if (activeChannel.value) return activeChannel.value;
+  if (activeChannel.value) {
+    const c = channelsState.list.find(x => x.name === activeChannel.value);
+    return c?.alias || activeChannel.value;
+  }
   if (activePeerId.value != null) return '私聊';
   return '聊天';
 });
@@ -76,6 +84,8 @@ const subtitle = computed(() => {
 function openChannel(name) { activeChannel.value = name; activePeerId.value = null; replyTo.value = null; }
 function openDm(peerId) { activePeerId.value = peerId; activeChannel.value = null; replyTo.value = null; }
 function goHome() { activeChannel.value = null; activePeerId.value = null; replyTo.value = null; }
+function openChannelMenu() { if (activeChannel.value) channelMenuOpen.value = true; }
+function onChannelChanged() { fetchChannels(); }
 
 onMounted(() => {
   const socket = connectSocket();

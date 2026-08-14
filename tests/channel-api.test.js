@@ -262,7 +262,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
 
         const ownerBeforeCreate = await requestJson(`${baseUrl}/api/channels`, authOptions(owner.token));
         assert.equal(ownerBeforeCreate.response.status, 200);
-        assert.deepEqual(ownerBeforeCreate.body.channels, PUBLIC_CHANNELS);
+        assert.deepEqual(ownerBeforeCreate.body.channels.map(c => c.name), PUBLIC_CHANNELS);
     });
 
     await t.test('legacy channel schema gains nullable owner_id without losing existing data', () => {
@@ -291,8 +291,8 @@ test('private channel membership is persisted and enforced across HTTP and Socke
 
         const ownerList = await requestJson(`${baseUrl}/api/channels`, authOptions(owner.token));
         const outsiderList = await requestJson(`${baseUrl}/api/channels`, authOptions(outsider.token));
-        assert.deepEqual(ownerList.body.channels, [...PUBLIC_CHANNELS, privateChannel]);
-        assert.deepEqual(outsiderList.body.channels, PUBLIC_CHANNELS);
+        assert.deepEqual(ownerList.body.channels.map(c => c.name), [...PUBLIC_CHANNELS, privateChannel]);
+        assert.deepEqual(outsiderList.body.channels.map(c => c.name), PUBLIC_CHANNELS);
 
         const persistedDb = new DatabaseSync(databaseFile, { readOnly: true });
         const row = persistedDb.prepare('SELECT owner_id, members FROM channels WHERE name = ?').get(privateChannel);
@@ -365,7 +365,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal(verification.response.status, 410);
 
         const outsiderList = await requestJson(`${baseUrl}/api/channels`, authOptions(outsider.token));
-        assert.deepEqual(outsiderList.body.channels, PUBLIC_CHANNELS);
+        assert.deepEqual(outsiderList.body.channels.map(c => c.name), PUBLIC_CHANNELS);
 
         const persistedDb = new DatabaseSync(databaseFile, { readOnly: true });
         const row = persistedDb.prepare('SELECT members FROM channels WHERE name = ?').get(privateChannel);
@@ -578,7 +578,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
 
         const invitedList = await requestJson(`${baseUrl}/api/channels`, authOptions(invited.token));
         const invitedMessages = await requestJson(`${baseUrl}/api/messages/${privatePath}`, authOptions(invited.token));
-        assert.deepEqual(invitedList.body.channels, PUBLIC_CHANNELS);
+        assert.deepEqual(invitedList.body.channels.map(c => c.name), PUBLIC_CHANNELS);
         assert.equal(invitedMessages.response.status, 403);
     });
 });

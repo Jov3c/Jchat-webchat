@@ -491,7 +491,17 @@ app.get('/api/version', (req, res) => {
 });
 
 app.get('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res) => {
-    res.json({ channels: getAvailableChannels(req.userId) });
+    const uid = parseInt(req.userId, 10);
+    const channels = getAvailableChannels(req.userId).map(name => {
+        const priv = db.channels[name];
+        return {
+            name,
+            alias: db.getChannelAlias(req.userId, name),
+            ownerId: priv ? priv.owner_id : null,
+            isOwner: priv ? priv.owner_id === uid : false
+        };
+    });
+    res.json({ channels });
 });
 
 app.post('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res) => {
@@ -509,6 +519,31 @@ app.post('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res)
 
 app.post('/api/channel/verify-password', authenticateUser, requireAuthenticatedUser, (req, res) => {
     return res.status(410).json({ error: 'Password-based channel access is no longer supported' });
+});
+
+app.put('/api/channel/:channel/alias', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { channel } = req.params;
+    if (!isValidChannel(channel)) return res.status(404).json({ error: 'Channel not found' });
+    if (!canAccessChannel(channel, req.userId)) return res.status(403).json({ error: 'Channel access denied' });
+    const alias = typeof req.body?.alias === 'string' ? req.body.alias.trim() : '';
+    if (alias.length > 28) return res.status(400).json({ error: '备注最多 28 个字符' });
+    db.setChannelAlias(req.userId, channel, alias);
+    res.json({ success: true, alias: alias || null });
+});
+
+app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { channel } = req.params;
+    if (!isPrivateChannel(channel)) return res.status(400).json({ error: '公共频道无法退出' });
+    const channelData = db.channels[channel];
+    if (!channelData) return res.status(404).json({ error: 'Channel not found' });
+    const uid = parseInt(req.userId, 10);
+    if (channelData.owner_id === uid) return res.status(400).json({ error: '频道创建者不能退出' });
+    const idx = channelData.members.indexOf(uid);
+    if (idx === -1) return res.status(400).json({ error: 'Not a member' });
+    channelData.members.splice(idx, 1);
+    db.saveData();
+    broadcastChannelPresence(channel);
+    res.json({ success: true });
 });
 
 app.get('/api/channel/:channel/access/:userId', authenticateUser, requireAuthenticatedUser, (req, res) => {
