@@ -1,5 +1,5 @@
 <template>
-  <div class="msg">
+  <div class="msg" :class="{ mine }">
     <span class="avatar-click" @click="goProfile" :title="message.nickname || message.username">
       <Avatar :src="message.avatar" :name="message.nickname || message.username" :size="38" />
     </span>
@@ -44,6 +44,9 @@ const time = computed(() => {
 .msg { display: flex; gap: 12px; padding: 8px 10px; border-radius: 12px; position: relative; }
 .msg:hover { background: var(--accent-ghost); }
 .msg :deep(.avatar-wrap) { margin-top: 2px; }
+.msg.mine { flex-direction: row-reverse; }
+.msg.mine .head { flex-direction: row-reverse; }
+.msg.mine .text, .msg.mine .reply-quote { text-align: right; }
 .avatar-click { cursor: pointer; }
 .body { min-width: 0; flex: 1; }
 .head { display: flex; align-items: baseline; gap: 8px; }

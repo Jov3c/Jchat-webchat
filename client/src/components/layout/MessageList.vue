@@ -22,7 +22,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, nextTick, onMounted, onBeforeUnmount, computed } from 'vue';
 import { http } from '../../api/http.js';
 import { connectSocket } from '../../api/socket.js';
 import { getUser } from '../../stores/auth.js';
@@ -43,6 +43,28 @@ function isMine(m) {
   if (props.peerId != null) return m.from_user_id === currentUserId;
   return m.user_id === currentUserId;
 }
+
+function formatDay(d) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const thatDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((today - thatDay) / 86400000);
+  const md = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+  if (diff === 0) return '今天 · ' + md;
+  if (diff === 1) return '昨天 · ' + md;
+  return d.getFullYear() + '/' + md;
+}
+
+const displayMessages = computed(() => {
+  let lastDay = null;
+  return messages.value.map(m => {
+    const d = new Date(m.created_at);
+    const day = Number.isNaN(d.getTime()) ? '' : formatDay(d);
+    const showDay = day !== lastDay;
+    lastDay = day;
+    return { ...m, showDay, dayLabel: day };
+  });
+});
 
 function isAtBottom() {
   const el = scrollEl.value;
@@ -134,6 +156,11 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
 .messages { flex: 1; overflow-y: auto; padding: 18px 22px 8px; display: flex; flex-direction: column; position: relative; }
 .empty { color: var(--muted); text-align: center; margin-top: 40px; font-size: 14px; }
 .msg-row { flex: none; }
+.day {
+  display: flex; align-items: center; gap: 12px;
+  margin: 6px 0 18px; color: var(--faint); font-size: 12px; flex: none;
+}
+.day::before, .day::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
 .jump-btn {
   position: sticky; bottom: 8px; align-self: center;
