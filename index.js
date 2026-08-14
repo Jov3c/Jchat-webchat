@@ -501,7 +501,8 @@ app.get('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res) 
             ownerId: priv ? priv.owner_id : null,
             isOwner: priv ? priv.owner_id === uid : false,
             last_message_at: db.getLastChannelMessageAt(name),
-            pinned: isPublic ? true : db.isPinned(uid, 'channel', name)
+            pinned: isPublic ? true : db.isPinned(uid, 'channel', name),
+            unread_count: db.getUnreadCount(uid, 'channel', name)
         };
     });
     res.json({ channels });
@@ -539,6 +540,13 @@ app.put('/api/pin', authenticateUser, requireAuthenticatedUser, (req, res) => {
     if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: 'Invalid pin' });
     db.setPin(req.userId, kind, String(key), !!pinned);
     res.json({ success: true, pinned: !!pinned });
+});
+
+app.post('/api/read', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { kind, key } = req.body || {};
+    if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: 'Invalid read' });
+    db.markRead(req.userId, kind, String(key));
+    res.json({ success: true });
 });
 
 app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUser, (req, res) => {
@@ -1400,7 +1408,8 @@ app.get('/api/friends', authenticateUser, requireUser, (req, res) => {
             ...friend,
             presence_status: user ? presence.effectiveStatus(req.userId, user) : 'offline',
             last_message_at: db.getLastDmMessageAt(uid, friend.id),
-            pinned: db.isPinned(uid, 'dm', String(friend.id))
+            pinned: db.isPinned(uid, 'dm', String(friend.id)),
+            unread_count: db.getUnreadCount(uid, 'dm', String(friend.id))
         };
     });
     res.json({ friends: list });

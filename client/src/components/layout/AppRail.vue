@@ -33,7 +33,7 @@
           <div v-for="c in sortedChannels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" :title="'#' + (c.alias || c.name)">
             <span class="hash">#</span><span class="label">{{ c.alias || c.name }}</span>
             <button v-if="c.ownerId != null" class="pin-btn" :class="{ on: c.pinned }" @click.stop="togglePin('channel', c.name, !c.pinned)" :title="c.pinned ? '取消置顶' : '置顶'">📌</button>
-            <span v-if="getUnreadCount(keyForChannel(c.name))" class="unread-badge">{{ getUnreadCount(keyForChannel(c.name)) }}</span>
+            <span v-if="chanUnread(c)" class="unread-badge">{{ chanUnread(c) }}</span>
           </div>
         </div>
       </Transition>
@@ -54,7 +54,7 @@
             </span>
             <span class="name">{{ f.nickname || f.username }}</span>
             <button class="pin-btn" :class="{ on: f.pinned }" @click.stop="togglePin('dm', f.id, !f.pinned)" :title="f.pinned ? '取消置顶' : '置顶'">📌</button>
-            <span v-if="getUnreadCount(keyForDm(f.id))" class="unread-badge">{{ getUnreadCount(keyForDm(f.id)) }}</span>
+            <span v-if="dmUnread(f)" class="unread-badge">{{ dmUnread(f) }}</span>
           </div>
         </div>
       </Transition>
@@ -131,8 +131,11 @@ const autoAway = ref(false);
 const me = ref(getUser() || {});
 const sections = ref({ channels: true, friends: true });
 
-const channelHasUnread = computed(() => channels.value.some(c => getUnreadCount(keyForChannel(c.name)) > 0));
-const friendHasUnread = computed(() => friends.value.some(f => getUnreadCount(keyForDm(f.id)) > 0));
+function chanUnread(c) { return (c.unread_count || 0) + getUnreadCount(keyForChannel(c.name)); }
+function dmUnread(f) { return (f.unread_count || 0) + getUnreadCount(keyForDm(f.id)); }
+
+const channelHasUnread = computed(() => channels.value.some(c => chanUnread(c) > 0));
+const friendHasUnread = computed(() => friends.value.some(f => dmUnread(f) > 0));
 
 function byRecent(a, b) {
   const ta = a.last_message_at || '';
@@ -159,6 +162,10 @@ async function togglePin(kind, key, pinned) {
   } catch { /* 忽略 */ }
 }
 
+function markRead(kind, key) {
+  http.post('/api/read', { kind, key }).catch(() => {});
+}
+
 const STATUS_OPTIONS = [
   { value: 'online', label: '在线' },
   { value: 'away', label: '离开' },
@@ -176,8 +183,20 @@ function onBrandClick() {
 }
 function toggleSection(key) { sections.value[key] = !sections.value[key]; }
 
-function selectChannel(name) { open.value = false; emit('select-channel', name); }
-function selectDm(peerId) { open.value = false; emit('select-dm', peerId); }
+function selectChannel(name) {
+  open.value = false;
+  const c = channels.value.find(x => x.name === name);
+  if (c) c.unread_count = 0;
+  markRead('channel', name);
+  emit('select-channel', name);
+}
+function selectDm(peerId) {
+  open.value = false;
+  const f = friends.value.find(x => x.id === peerId);
+  if (f) f.unread_count = 0;
+  markRead('dm', String(peerId));
+  emit('select-dm', peerId);
+}
 function onProfileSaved() { me.value = { ...(getUser() || {}) }; }
 
 async function applyStatus(value) {

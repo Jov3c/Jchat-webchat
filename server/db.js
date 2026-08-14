@@ -137,6 +137,14 @@ sqlite.exec(`
     PRIMARY KEY (user_id, kind, key),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS last_read (
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    key TEXT NOT NULL,
+    last_read_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, kind, key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 const channelColumns = sqlite.prepare('PRAGMA table_info(channels)').all();
@@ -248,6 +256,39 @@ function getLastDmMessageAt(userId, peerId) {
 function getLastChannelMessageAt(channel) {
     const row = sqlite.prepare('SELECT MAX(created_at) AS t FROM messages WHERE channel = ?').get(channel);
     return row?.t || null;
+}
+
+function getLastReadAt(userId, kind, key) {
+    const row = sqlite.prepare('SELECT last_read_at FROM last_read WHERE user_id = ? AND kind = ? AND key = ?').get(int(userId), kind, key);
+    return row?.last_read_at || null;
+}
+
+function markRead(userId, kind, key) {
+    const uid = int(userId);
+    const now = nowIso();
+    sqlite.prepare('INSERT INTO last_read(user_id, kind, key, last_read_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, kind, key) DO UPDATE SET last_read_at = excluded.last_read_at').run(uid, kind, key, now);
+}
+
+function getUnreadCount(userId, kind, key) {
+    const uid = int(userId);
+    const since = getLastReadAt(uid, kind, key) || '';
+    if (kind === 'dm') {
+        const row = sqlite.prepare('SELECT COUNT(*) AS c FROM dm_messages WHERE from_user_id = ? AND to_user_id = ? AND created_at > ?').get(int(key), uid, since);
+        return row?.c || 0;
+    }
+    const row = sqlite.prepare('SELECT COUNT(*) AS c FROM messages WHERE channel = ? AND user_id != ? AND created_at > ?').get(key, uid, since);
+    return row?.c || 0;
+}
+
+function getFirstUnreadId(userId, kind, key) {
+    const uid = int(userId);
+    const since = getLastReadAt(uid, kind, key) || '';
+    if (kind === 'dm') {
+        const row = sqlite.prepare('SELECT id FROM dm_messages WHERE from_user_id = ? AND to_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 1').get(int(key), uid, since);
+        return row?.id || null;
+    }
+    const row = sqlite.prepare('SELECT id FROM messages WHERE channel = ? AND user_id != ? AND created_at > ? ORDER BY created_at ASC LIMIT 1').get(key, uid, since);
+    return row?.id || null;
 }
 
 function userFromRow(row) {
@@ -696,5 +737,6 @@ module.exports = {
     clearDmDataBetween, isBlocked, addBlock, removeBlock, getBlockedUserIds,
     getChannelAlias, setChannelAlias,
     createChannelInvite, getPendingChannelInvites, respondChannelInvite,
-    isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt
+    isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt,
+    getLastReadAt, markRead, getUnreadCount, getFirstUnreadId
 };
