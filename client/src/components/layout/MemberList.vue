@@ -4,7 +4,7 @@
     <div class="rail-scroll">
       <div v-if="!members.length" class="empty">暂无成员</div>
       <div v-for="m in members" :key="m.id" class="member">
-        <span class="avatar-click" @click="goProfile(m.id)">
+        <span class="avatar-click" @click="goProfile(m.id, $event)">
           <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="getLivePresence(m.id, m.presence_status)" :size="30" />
         </span>
         <span class="name">{{ m.nickname || m.username }}<span v-if="m.id === meId" class="you">你</span></span>
@@ -22,6 +22,7 @@ import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
+import { openUserCard } from '../../stores/userCard.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ channel: String });
@@ -29,9 +30,9 @@ const router = useRouter();
 const members = ref([]);
 const meId = getUser()?.id;
 
-function goProfile(id) {
+function goProfile(id, event) {
   if (id === meId) router.push('/profile');
-  else router.push('/user/' + id);
+  else openUserCard(id, event);
 }
 
 watch(() => props.channel, async (c) => {

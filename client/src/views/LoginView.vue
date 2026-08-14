@@ -3,7 +3,7 @@
     <form class="card" @submit.prevent="submit">
       <h1>JoyChat</h1>
       <p class="sub">登录以继续</p>
-      <input v-model="username" placeholder="用户名" autocomplete="username" />
+      <input v-model="username" placeholder="账号" autocomplete="username" />
       <input v-model="password" type="password" placeholder="密码" autocomplete="current-password" />
       <p v-if="error" class="error">{{ error }}</p>
       <button class="primary" type="submit" :disabled="loading">登录</button>

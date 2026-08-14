@@ -16,8 +16,12 @@
           </label>
         </div>
         <label class="field">
-          <span>昵称</span>
-          <input v-model="me.nickname" placeholder="昵称" />
+          <span>账号（登录用，不可更改）</span>
+          <input :value="me.username" disabled />
+        </label>
+        <label class="field">
+          <span>用户名</span>
+          <input v-model="me.nickname" placeholder="用户名" />
         </label>
         <label class="field">
           <span>简介</span>
@@ -56,7 +60,7 @@
       <section class="card">
         <h2>好友管理</h2>
         <form class="add-form" @submit.prevent="addFriend">
-          <input v-model="addUsername" placeholder="对方用户名" />
+          <input v-model="addUsername" placeholder="对方账号" />
           <button class="primary sm" type="submit">添加好友</button>
         </form>
         <p v-if="addError" class="error">{{ addError }}</p>
@@ -279,6 +283,7 @@ async function removeFriend(id) {
   font-size: 14px;
 }
 .field textarea { resize: vertical; }
+.field input:disabled { opacity: 0.6; cursor: not-allowed; }
 .primary {
   padding: 10px;
   border-radius: var(--radius-sm);

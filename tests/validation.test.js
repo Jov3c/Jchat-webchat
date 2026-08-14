@@ -42,25 +42,26 @@ describe('validateUsername', () => {
 });
 
 describe('validatePassword', () => {
-    it('通过：含字母和数字且长度>=8', () => {
+    it('通过：含字母和数字且长度>=6', () => {
         assert.strictEqual(validatePassword('password1').ok, true);
         assert.strictEqual(validatePassword('Abc12345').ok, true);
+        assert.strictEqual(validatePassword('Abc123').ok, true);
     });
 
     it('拒绝：过短', () => {
-        const r = validatePassword('Abc1234');
+        const r = validatePassword('Abc12');
         assert.strictEqual(r.ok, false);
         assert.ok(r.error.includes('至少'));
     });
 
     it('拒绝：无字母', () => {
-        const r = validatePassword('12345678');
+        const r = validatePassword('123456');
         assert.strictEqual(r.ok, false);
         assert.ok(r.error.includes('字母'));
     });
 
     it('拒绝：无数字', () => {
-        const r = validatePassword('abcdefgh');
+        const r = validatePassword('abcdef');
         assert.strictEqual(r.ok, false);
         assert.ok(r.error.includes('数字'));
     });

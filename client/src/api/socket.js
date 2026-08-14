@@ -18,3 +18,6 @@ export function connectSocket() {
 
 export function getSocket() { return socket || connectSocket(); }
 export function authenticate(cb) { getSocket().emit('authenticate', getToken(), cb); }
+export function disconnectSocket() {
+  if (socket) { socket.disconnect(); socket = null; }
+}

@@ -17,26 +17,28 @@
           <span class="spacer"></span>
           <button class="icon-btn" aria-label="菜单">⋮</button>
         </div>
-        <template v-if="activeChannel || activePeerId != null">
-          <header class="main-head">
-            <div class="head-title">
-              <span v-if="activeChannel" class="hash">#</span>{{ title }}
-            </div>
-            <div v-if="subtitle" class="head-sub">{{ subtitle }}</div>
-            <span class="spacer"></span>
-            <button class="icon-btn" aria-label="搜索">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            </button>
-            <button class="icon-btn" aria-label="更多">⋮</button>
-          </header>
-          <MessageList :channel="activeChannel" :peer-id="activePeerId" @reply="replyTo = $event" />
-          <Composer :channel="activeChannel" :peer-id="activePeerId" :reply-to="replyTo" @clear-reply="replyTo = null" />
-        </template>
-        <div v-else class="home">
-          <div class="home-mark">J</div>
-          <div class="home-title">JoyChat</div>
-          <div class="home-sub">从左侧选择一个聊天开始</div>
-        </div>
+        <Transition name="fade" mode="out-in">
+          <div v-if="activeChannel || activePeerId != null" key="conv" class="conv">
+            <header class="main-head">
+              <div class="head-title">
+                <span v-if="activeChannel" class="hash">#</span>{{ title }}
+              </div>
+              <div v-if="subtitle" class="head-sub">{{ subtitle }}</div>
+              <span class="spacer"></span>
+              <button class="icon-btn" aria-label="搜索">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              </button>
+              <button class="icon-btn" aria-label="更多">⋮</button>
+            </header>
+            <MessageList :channel="activeChannel" :peer-id="activePeerId" @reply="replyTo = $event" />
+            <Composer :channel="activeChannel" :peer-id="activePeerId" :reply-to="replyTo" @clear-reply="replyTo = null" />
+          </div>
+          <div v-else key="home" class="home">
+            <div class="home-mark">J</div>
+            <div class="home-title">JoyChat</div>
+            <div class="home-sub">从左侧选择一个聊天开始</div>
+          </div>
+        </Transition>
       </main>
       <aside class="aside">
         <MemberList :channel="activeChannel" />
@@ -117,6 +119,11 @@ watch([activeChannel, activePeerId], ([channel, peerId]) => {
   background: var(--panel);
 }
 .aside { min-height: 0; background: var(--rail); border-left: 1px solid var(--border); }
+
+.conv { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.fade-enter-from { opacity: 0; transform: translateY(6px); }
+.fade-leave-to { opacity: 0; transform: translateY(-6px); }
 
 .home {
   flex: 1;

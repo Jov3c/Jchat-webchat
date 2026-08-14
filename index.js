@@ -194,7 +194,7 @@ function broadcastUserPresence(userId) {
     }
 }
 
-const { validateUsername, validatePassword, validateFriendReason, validateDeactivationReason } = require('./server/validation');
+const { validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason } = require('./server/validation');
 
 const ADMIN_CREDENTIALS_FILE = process.env.JCHAT_ADMIN_CREDENTIALS_FILE || path.join(__dirname, 'server', 'data', 'admin_credentials.json');
 const BCRYPT_HASH_PREFIX = /^\$2[aby]\$\d\d\$/;
@@ -522,16 +522,24 @@ app.post('/api/register', registrationRateLimiter, async (req, res) => {
     const { username, password, email, nickname } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ error: '请填写用户名和密码' });
+        return res.status(400).json({ error: '请填写账号和密码' });
     }
 
     const userCheck = validateUsername(username);
     if (!userCheck.ok) return res.status(400).json({ error: userCheck.error });
     const passwordCheck = validatePassword(password);
     if (!passwordCheck.ok) return res.status(400).json({ error: passwordCheck.error });
+    // 用户名（显示名）：未填则默认等于账号
+    const rawNickname = (typeof nickname === 'string' && nickname.trim()) ? nickname : userCheck.value;
+    const nicknameCheck = validateNickname(rawNickname);
+    if (!nicknameCheck.ok) return res.status(400).json({ error: nicknameCheck.error });
 
     try {
         if (db.getUserByUsername(userCheck.value)) {
+            return res.status(400).json({ error: '账号已被使用' });
+        }
+
+        if (db.getUserByNickname(nicknameCheck.value)) {
             return res.status(400).json({ error: '用户名已被使用' });
         }
 
@@ -545,7 +553,7 @@ app.post('/api/register', registrationRateLimiter, async (req, res) => {
             username: userCheck.value,
             password: hashedPassword,
             email,
-            nickname
+            nickname: nicknameCheck.value
         });
 
         const session = createUserSessionToken(newUser.id, JWT_SECRET, JWT_EXPIRES_IN);
@@ -914,11 +922,19 @@ app.put('/api/profile/:userId', authenticateUser, requireUser, (req, res) => {
             return res.status(400).json({ error: 'Email already exists' });
         }
     }
+    let checkedNickname;
+    if (nickname !== undefined) {
+        const nicknameCheck = validateNickname(nickname);
+        if (!nicknameCheck.ok) return res.status(400).json({ error: nicknameCheck.error });
+        const existingNick = db.getUserByNickname(nicknameCheck.value);
+        if (existingNick && existingNick.id !== userId) return res.status(400).json({ error: '用户名已被使用' });
+        checkedNickname = nicknameCheck.value;
+    }
     const updates = {};
     if (bio !== undefined) updates.bio = bio;
     if (gender !== undefined) updates.gender = gender;
     if (email !== undefined) updates.email = email;
-    if (nickname !== undefined) updates.nickname = nickname;
+    if (nickname !== undefined) updates.nickname = checkedNickname;
     if (presence_status !== undefined) updates.presence_status = presence_status;
     if (allow_add_friend_from_profile !== undefined) {
         const v = allow_add_friend_from_profile;

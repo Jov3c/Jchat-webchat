@@ -210,6 +210,7 @@ function getUsers() { return users; }
 function getUserById(id) { return users.find(user => user.id === int(id)) || null; }
 function getUserByUsername(username) { return users.find(user => user.username === username) || null; }
 function getUserByEmail(email) { return users.find(user => user.email === email) || null; }
+function getUserByNickname(nickname) { return users.find(user => user.nickname === nickname) || null; }
 function getUserByIdentifier(identifier) {
     const value = identifier == null ? '' : String(identifier).trim();
     return value ? getUserByUsername(value) : null;
@@ -572,7 +573,7 @@ importLegacyUsersFromFile();
 
 module.exports = {
     users, messages, channels, friends, friendRequests,
-    getUsers, getUserById, getUserByUsername, getUserByEmail, getUserByIdentifier,
+    getUsers, getUserById, getUserByUsername, getUserByEmail, getUserByNickname, getUserByIdentifier,
     importLegacyUsers, insertUser, updateUser, setUserSession, clearUserSession, deleteUser, addDeactivationRequest, getDeactivationLock,
     getDeactivationRequestByUserId, getDeactivationRequestById, getDeactivationRequests,
     updateDeactivationRequestStatus, getMessagesByChannel, getMessageById, insertMessage,

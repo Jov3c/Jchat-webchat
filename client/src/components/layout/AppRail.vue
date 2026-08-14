@@ -26,7 +26,7 @@
       </div>
       <div class="section-label">私聊</div>
       <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
-        <span class="avatar-click" @click.stop="router.push('/user/' + f.id)">
+        <span class="avatar-click" @click.stop="openUserCard(f.id, $event)">
           <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
         </span>
         <span class="name">{{ f.nickname || f.username }}</span>
@@ -72,6 +72,8 @@ import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
+import { openUserCard } from '../../stores/userCard.js';
+import { disconnectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ collapsed: Boolean, activeChannel: String, activePeerId: Number });
@@ -83,6 +85,7 @@ const friends = ref([]);
 const open = ref(false);
 const statusOpen = ref(false);
 const logoutOpen = ref(false);
+const autoAway = ref(false);
 const me = ref(getUser() || {});
 
 const STATUS_OPTIONS = [
@@ -104,8 +107,7 @@ function onBrandClick() {
 function selectChannel(name) { open.value = false; emit('select-channel', name); }
 function selectDm(peerId) { open.value = false; emit('select-dm', peerId); }
 
-async function setStatus(value) {
-  statusOpen.value = false;
+async function applyStatus(value) {
   const old = me.value.presence_status;
   me.value = { ...me.value, presence_status: value };
   try {
@@ -116,18 +118,31 @@ async function setStatus(value) {
   }
 }
 
-function confirmLogout() { statusOpen.value = false; logoutOpen.value = true; }
-function doLogout() { clearLogin(); router.push('/login'); }
+function setStatus(value) {
+  statusOpen.value = false;
+  autoAway.value = false;
+  applyStatus(value);
+}
 
-// 无操作 30 分钟后自动切到「离开」（仅当当前为在线时）
+function confirmLogout() { statusOpen.value = false; logoutOpen.value = true; }
+function doLogout() { disconnectSocket(); clearLogin(); router.push('/login'); }
+
+// 无操作 30 分钟后自动切到「离开」（仅当当前为在线时）；检测到活动自动切回「在线」
 const IDLE_MS = 30 * 60 * 1000;
 let idleTimer = null;
 function onIdle() {
-  if (me.value.presence_status === 'online') setStatus('away');
+  if (me.value.presence_status === 'online') {
+    autoAway.value = true;
+    applyStatus('away');
+  }
 }
 function resetIdle() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(onIdle, IDLE_MS);
+  if (autoAway.value && me.value.presence_status === 'away') {
+    autoAway.value = false;
+    applyStatus('online');
+  }
 }
 
 defineExpose({ openDrawer: () => { open.value = true; } });

@@ -6,7 +6,6 @@ const routes = [
   { path: '/register', component: () => import('./views/RegisterView.vue') },
   { path: '/', component: () => import('./views/ChatView.vue'), meta: { requiresAuth: true } },
   { path: '/profile', component: () => import('./views/ProfileView.vue'), meta: { requiresAuth: true } },
-  { path: '/user/:id', component: () => import('./views/UserView.vue'), meta: { requiresAuth: true } },
   { path: '/admin', component: () => import('./views/AdminView.vue') }
 ];
 

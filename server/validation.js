@@ -5,7 +5,8 @@ const FRIEND_REASON_MAX_LENGTH = 200;
 const USERNAME_MIN_LENGTH = 2;
 const USERNAME_MAX_LENGTH = 20;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
-const PASSWORD_MIN_LENGTH = 8;
+const NICKNAME_MAX_LENGTH = 20;
+const PASSWORD_MIN_LENGTH = 6;
 const PASSWORD_MAX_LENGTH = 128;
 
 function validateUsername(username) {
@@ -25,6 +26,13 @@ function validatePassword(password) {
     return { ok: true };
 }
 
+function validateNickname(nickname) {
+    const s = typeof nickname === 'string' ? nickname.trim() : '';
+    if (!s) return { ok: false, error: '请填写用户名' };
+    if (s.length > NICKNAME_MAX_LENGTH) return { ok: false, error: '用户名最多 ' + NICKNAME_MAX_LENGTH + ' 个字符' };
+    return { ok: true, value: s };
+}
+
 function validateFriendReason(message) {
     if (message == null || message === '') return { ok: true, value: null };
     const s = String(message).trim();
@@ -42,11 +50,13 @@ function validateDeactivationReason(reason) {
 module.exports = {
     validateUsername,
     validatePassword,
+    validateNickname,
     validateFriendReason,
     validateDeactivationReason,
     FRIEND_REASON_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
     USERNAME_MAX_LENGTH,
+    NICKNAME_MAX_LENGTH,
     PASSWORD_MIN_LENGTH,
     PASSWORD_MAX_LENGTH
 };
