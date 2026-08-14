@@ -1,15 +1,21 @@
 import { reactive } from 'vue';
 
-// 好友未读消息计数（会话级）：peerId → 未读数量
-const unread = reactive({});
+// 未读消息（会话级）：key → 未读数量 / 首条未读消息 id
+const state = reactive({ counts: {}, firstUnread: {} });
 
-export function incrementUnread(peerId) {
-  const id = Number(peerId);
-  unread[id] = (unread[id] || 0) + 1;
+export function keyForChannel(name) { return 'c:' + name; }
+export function keyForDm(peerId) { return 'd:' + peerId; }
+
+export function incrementUnread(key, messageId) {
+  if (!state.firstUnread[key]) state.firstUnread[key] = messageId;
+  state.counts[key] = (state.counts[key] || 0) + 1;
 }
 
-export function clearUnread(peerId) {
-  unread[Number(peerId)] = 0;
+export function clearUnread(key) {
+  delete state.counts[key];
+  delete state.firstUnread[key];
 }
 
-export function useUnread() { return unread; }
+export function getUnreadCount(key) { return state.counts[key] || 0; }
+export function getFirstUnreadId(key) { return state.firstUnread[key] || null; }
+export function useUnread() { return state; }

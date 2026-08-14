@@ -3,11 +3,12 @@
     <div v-if="!messages.length" class="empty">暂无消息</div>
     <template v-for="m in displayMessages" :key="m.id">
       <div v-if="m.showDay" class="day">{{ m.dayLabel }}</div>
-      <div class="msg-row" @contextmenu.prevent="openMenu($event, m)">
+      <div class="msg-row" :data-mid="m.id" @contextmenu.prevent="openMenu($event, m)">
         <MessageBubble :message="m" :mine="isMine(m)" />
       </div>
     </template>
 
+    <button v-if="jumpUnreadId" class="jump-unread-btn" @click="scrollToUnread">↑ 第一条未读</button>
     <button v-if="showJump" class="jump-btn" @click="scrollToBottom()">↓ 跳转到最新</button>
 
     <Teleport to="body">
@@ -26,6 +27,7 @@ import { ref, watch, nextTick, onMounted, onBeforeUnmount, computed } from 'vue'
 import { http } from '../../api/http.js';
 import { connectSocket } from '../../api/socket.js';
 import { getUser } from '../../stores/auth.js';
+import { getFirstUnreadId, clearUnread, keyForChannel, keyForDm } from '../../stores/unread.js';
 import MessageBubble from '../MessageBubble.vue';
 
 const props = defineProps({ channel: String, peerId: Number });
@@ -37,6 +39,7 @@ const currentUserId = getUser()?.id;
 const scrollEl = ref(null);
 const atBottom = ref(true);
 const showJump = ref(false);
+const jumpUnreadId = ref(null);
 const menu = ref({ open: false, x: 0, y: 0, message: null });
 
 function isMine(m) {
@@ -127,6 +130,9 @@ function applyRecall(messageId) {
 async function load() {
   messages.value = [];
   showJump.value = false;
+  jumpUnreadId.value = null;
+  const key = props.peerId != null ? keyForDm(props.peerId) : keyForChannel(props.channel);
+  const firstUnread = getFirstUnreadId(key);
   if (props.peerId != null) {
     const data = await http.get(`/api/dm/${props.peerId}/messages`);
     messages.value = data.messages || data || [];
@@ -134,7 +140,17 @@ async function load() {
     const data = await http.get(`/api/messages/${props.channel}`);
     messages.value = data.messages || data || [];
   }
+  clearUnread(key);
+  if (firstUnread && messages.value.some(m => m.id === firstUnread)) {
+    jumpUnreadId.value = firstUnread;
+  }
   nextTick(() => { scrollToBottom(); atBottom.value = true; });
+}
+
+function scrollToUnread() {
+  const el = scrollEl.value?.querySelector(`[data-mid="${jumpUnreadId.value}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  jumpUnreadId.value = null;
 }
 
 watch(() => [props.channel, props.peerId], load, { immediate: true });
@@ -169,6 +185,13 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
   color: var(--accent-strong); font-size: 13px; cursor: pointer;
 }
 .jump-btn:hover { background: var(--accent-ghost); }
+.jump-unread-btn {
+  position: sticky; top: 8px; align-self: flex-end; margin-right: 4px;
+  padding: 6px 14px; border-radius: 999px; background: var(--accent);
+  border: 0; box-shadow: var(--shadow);
+  color: #fff; font-size: 13px; cursor: pointer;
+}
+.jump-unread-btn:hover { background: var(--accent-strong); }
 
 .ctx-overlay { position: fixed; inset: 0; z-index: 90; }
 .ctx-menu {

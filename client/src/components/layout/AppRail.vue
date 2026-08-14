@@ -22,7 +22,7 @@
     <div class="rail-scroll">
       <div class="section-head" @click="toggleSection('channels')">
         <span class="chevron" :class="{ open: sections.channels }">▾</span>
-        <span class="section-label">频道</span>
+        <span class="section-label">频道<span v-if="channelHasUnread" class="sec-dot"></span></span>
         <span class="add-wrap" @click.stop="openChannelManager">
           <button class="section-add" title="频道管理">+</button>
           <span v-if="channelInviteNotice" class="add-dot"></span>
@@ -32,13 +32,14 @@
         <div v-if="sections.channels" class="section-body">
           <div v-for="c in channels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" :title="'#' + (c.alias || c.name)">
             <span class="hash">#</span><span class="label">{{ c.alias || c.name }}</span>
+            <span v-if="getUnreadCount(keyForChannel(c.name))" class="unread-badge">{{ getUnreadCount(keyForChannel(c.name)) }}</span>
           </div>
         </div>
       </Transition>
 
       <div class="section-head" @click="toggleSection('friends')">
         <span class="chevron" :class="{ open: sections.friends }">▾</span>
-        <span class="section-label">好友</span>
+        <span class="section-label">好友<span v-if="friendHasUnread" class="sec-dot"></span></span>
         <span class="add-wrap" @click.stop="friendOpen = true">
           <button class="section-add" title="管理好友">+</button>
           <span v-if="requestCount" class="add-dot"></span>
@@ -51,7 +52,7 @@
               <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
             </span>
             <span class="name">{{ f.nickname || f.username }}</span>
-            <span v-if="unread[f.id]" class="unread-badge">{{ unread[f.id] }}</span>
+            <span v-if="getUnreadCount(keyForDm(f.id))" class="unread-badge">{{ getUnreadCount(keyForDm(f.id)) }}</span>
           </div>
         </div>
       </Transition>
@@ -96,13 +97,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { getLivePresence } from '../../stores/presence.js';
 import { openUserCard } from '../../stores/userCard.js';
-import { useUnread, incrementUnread, clearUnread } from '../../stores/unread.js';
+import { incrementUnread, clearUnread, getUnreadCount, keyForChannel, keyForDm } from '../../stores/unread.js';
 import { fetchChannels } from '../../stores/channels.js';
 import { disconnectSocket, connectSocket } from '../../api/socket.js';
 import Avatar from '../Avatar.vue';
@@ -114,7 +115,6 @@ const props = defineProps({ collapsed: Boolean, activeChannel: String, activePee
 const emit = defineEmits(['update:collapsed', 'select-channel', 'select-dm', 'select-home']);
 
 const router = useRouter();
-const unread = useUnread();
 const channels = ref([]);
 const friends = ref([]);
 const requestCount = ref(0);
@@ -128,6 +128,9 @@ const channelInviteNotice = ref(false);
 const autoAway = ref(false);
 const me = ref(getUser() || {});
 const sections = ref({ channels: true, friends: true });
+
+const channelHasUnread = computed(() => channels.value.some(c => getUnreadCount(keyForChannel(c.name)) > 0));
+const friendHasUnread = computed(() => friends.value.some(f => getUnreadCount(keyForDm(f.id)) > 0));
 
 const STATUS_OPTIONS = [
   { value: 'online', label: '在线' },
@@ -147,7 +150,7 @@ function onBrandClick() {
 function toggleSection(key) { sections.value[key] = !sections.value[key]; }
 
 function selectChannel(name) { open.value = false; emit('select-channel', name); }
-function selectDm(peerId) { open.value = false; clearUnread(peerId); emit('select-dm', peerId); }
+function selectDm(peerId) { open.value = false; emit('select-dm', peerId); }
 function onProfileSaved() { me.value = { ...(getUser() || {}) }; }
 
 async function applyStatus(value) {
@@ -239,7 +242,12 @@ onMounted(async () => {
   const socket = connectSocket();
   socket.on('privateMessageReceived', (m) => {
     if (m.to_user_id === me.value.id && m.from_user_id !== props.activePeerId) {
-      incrementUnread(m.from_user_id);
+      incrementUnread(keyForDm(m.from_user_id), m.id);
+    }
+  });
+  socket.on('messageReceived', (m) => {
+    if (m.channel !== props.activeChannel) {
+      incrementUnread(keyForChannel(m.channel), m.id);
     }
   });
   socket.on('channelInvited', () => {
@@ -306,6 +314,10 @@ onBeforeUnmount(unbindIdle);
 .chevron.open { transform: rotate(0deg); }
 .section-label {
   flex: 1; font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: var(--text); white-space: nowrap;
+}
+.sec-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red); margin-left: 4px; vertical-align: top; margin-top: 2px;
 }
 .section-add {
   flex: none; border: 0; background: transparent; color: var(--faint);
