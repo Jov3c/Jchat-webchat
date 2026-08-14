@@ -10,8 +10,10 @@
 
           <div class="em-avatar">
             <Avatar :src="form.avatar" :name="form.nickname || form.username" :size="56" />
-            <button type="button" class="em-upload" @click="pickAvatar">更换头像</button>
-            <input ref="fileInput" type="file" accept="image/*" @change="onAvatarChange" style="display: none" />
+            <label class="em-upload">
+              更换头像
+              <input type="file" accept="image/*" @change="onAvatarChange" class="em-file" />
+            </label>
           </div>
 
           <label class="em-field">
@@ -57,12 +59,10 @@ const error = ref('');
 const msg = ref('');
 const saving = ref(false);
 const nickInput = ref(null);
-const fileInput = ref(null);
 
 onMounted(() => { nickInput.value?.focus(); });
 
 function close() { emit('close'); }
-function pickAvatar() { fileInput.value?.click(); }
 
 async function save() {
   error.value = '';
@@ -127,8 +127,9 @@ async function onAvatarChange(e) {
 .em-close { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px; }
 .em-close:hover { color: var(--text); }
 .em-avatar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-.em-upload { padding: 6px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); font-size: 13px; cursor: pointer; }
+.em-upload { position: relative; display: inline-block; overflow: hidden; padding: 6px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); font-size: 13px; cursor: pointer; }
 .em-upload:hover { background: var(--hover); }
+.em-file { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .em-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 .em-field input, .em-field textarea, .em-field select {
   padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); font-size: 14px;

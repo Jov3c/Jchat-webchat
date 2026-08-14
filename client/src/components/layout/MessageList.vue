@@ -1,9 +1,12 @@
 <template>
   <div class="messages" ref="scrollEl" @scroll="onScroll">
     <div v-if="!messages.length" class="empty">暂无消息</div>
-    <div v-for="m in messages" :key="m.id" class="msg-row" @contextmenu.prevent="openMenu($event, m)">
-      <MessageBubble :message="m" :mine="isMine(m)" />
-    </div>
+    <template v-for="m in displayMessages" :key="m.id">
+      <div v-if="m.showDay" class="day">{{ m.dayLabel }}</div>
+      <div class="msg-row" @contextmenu.prevent="openMenu($event, m)">
+        <MessageBubble :message="m" :mine="isMine(m)" />
+      </div>
+    </template>
 
     <button v-if="showJump" class="jump-btn" @click="scrollToBottom()">↓ 跳转到最新</button>
 
