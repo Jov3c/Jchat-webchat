@@ -4,7 +4,7 @@
     <div class="rail-scroll">
       <div v-if="!members.length" class="empty">暂无成员</div>
       <div v-for="m in members" :key="m.id" class="member">
-        <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="m.presence_status" :size="30" />
+        <Avatar :src="m.avatar" :name="m.nickname || m.username" :presence="getLivePresence(m.id, m.presence_status)" :size="30" />
         <span class="name">{{ m.nickname || m.username }}<span v-if="m.id === meId" class="you">你</span></span>
       </div>
     </div>
@@ -18,6 +18,7 @@
 import { ref, watch } from 'vue';
 import { http } from '../../api/http.js';
 import { getUser } from '../../stores/auth.js';
+import { getLivePresence } from '../../stores/presence.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ channel: String });

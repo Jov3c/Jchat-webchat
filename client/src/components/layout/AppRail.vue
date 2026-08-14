@@ -26,7 +26,7 @@
       </div>
       <div class="section-label">私聊</div>
       <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
-        <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="f.presence_status" />
+        <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
         <span class="name">{{ f.nickname || f.username }}</span>
       </div>
     </div>
@@ -52,6 +52,7 @@
 import { ref, onMounted } from 'vue';
 import { http } from '../../api/http.js';
 import { getUser, updateUser } from '../../stores/auth.js';
+import { getLivePresence } from '../../stores/presence.js';
 import Avatar from '../Avatar.vue';
 
 const props = defineProps({ collapsed: Boolean, activeChannel: String, activePeerId: Number });

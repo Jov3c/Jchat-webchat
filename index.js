@@ -1278,7 +1278,13 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
 });
 
 app.get('/api/friends', authenticateUser, requireUser, (req, res) => {
-    const list = db.getFriends(req.userId);
+    const list = db.getFriends(req.userId).map(friend => {
+        const user = db.getUserById(friend.id);
+        return {
+            ...friend,
+            presence_status: user ? presence.effectiveStatus(req.userId, user) : 'offline'
+        };
+    });
     res.json({ friends: list });
 });
 

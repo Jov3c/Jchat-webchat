@@ -44,6 +44,7 @@ import MessageList from '../components/layout/MessageList.vue';
 import Composer from '../components/layout/Composer.vue';
 import MemberList from '../components/layout/MemberList.vue';
 import { connectSocket, authenticate } from '../api/socket.js';
+import { applyPresenceUpdate } from '../stores/presence.js';
 
 const collapsed = ref(false);
 const activeChannel = ref(null);
@@ -67,6 +68,7 @@ function openDm(peerId) { activePeerId.value = peerId; activeChannel.value = nul
 onMounted(() => {
   const socket = connectSocket();
   authenticate(() => {});
+  socket.on('presenceUpdated', ({ userId, status }) => applyPresenceUpdate(userId, status));
 });
 
 watch([activeChannel, activePeerId], ([channel, peerId]) => {
