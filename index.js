@@ -494,11 +494,14 @@ app.get('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res) 
     const uid = parseInt(req.userId, 10);
     const channels = getAvailableChannels(req.userId).map(name => {
         const priv = db.channels[name];
+        const isPublic = !priv;
         return {
             name,
             alias: db.getChannelAlias(req.userId, name),
             ownerId: priv ? priv.owner_id : null,
-            isOwner: priv ? priv.owner_id === uid : false
+            isOwner: priv ? priv.owner_id === uid : false,
+            last_message_at: db.getLastChannelMessageAt(name),
+            pinned: isPublic ? true : db.isPinned(uid, 'channel', name)
         };
     });
     res.json({ channels });
@@ -529,6 +532,13 @@ app.put('/api/channel/:channel/alias', authenticateUser, requireAuthenticatedUse
     if (alias.length > 28) return res.status(400).json({ error: '备注最多 28 个字符' });
     db.setChannelAlias(req.userId, channel, alias);
     res.json({ success: true, alias: alias || null });
+});
+
+app.put('/api/pin', authenticateUser, requireAuthenticatedUser, (req, res) => {
+    const { kind, key, pinned } = req.body || {};
+    if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: 'Invalid pin' });
+    db.setPin(req.userId, kind, String(key), !!pinned);
+    res.json({ success: true, pinned: !!pinned });
 });
 
 app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUser, (req, res) => {
@@ -1383,11 +1393,14 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
 });
 
 app.get('/api/friends', authenticateUser, requireUser, (req, res) => {
+    const uid = parseInt(req.userId, 10);
     const list = db.getFriends(req.userId).map(friend => {
         const user = db.getUserById(friend.id);
         return {
             ...friend,
-            presence_status: user ? presence.effectiveStatus(req.userId, user) : 'offline'
+            presence_status: user ? presence.effectiveStatus(req.userId, user) : 'offline',
+            last_message_at: db.getLastDmMessageAt(uid, friend.id),
+            pinned: db.isPinned(uid, 'dm', String(friend.id))
         };
     });
     res.json({ friends: list });

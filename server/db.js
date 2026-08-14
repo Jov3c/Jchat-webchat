@@ -129,6 +129,14 @@ sqlite.exec(`
     FOREIGN KEY (invited_user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (inviter_user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS pins (
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, kind, key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 const channelColumns = sqlite.prepare('PRAGMA table_info(channels)').all();
@@ -205,6 +213,41 @@ function respondChannelInvite(id, userId, action) {
     const status = action === 'accept' ? 'accepted' : 'rejected';
     sqlite.prepare('UPDATE channel_invites SET status = ? WHERE id = ?').run(status, invite.id);
     return { ok: true, invite: { ...invite, status } };
+}
+
+const pins = new Map(); // key: `${userId}:${kind}:${key}` → true
+function loadPins() {
+    pins.clear();
+    for (const row of sqlite.prepare('SELECT * FROM pins').all()) {
+        pins.set(`${int(row.user_id)}:${row.kind}:${row.key}`, true);
+    }
+}
+loadPins();
+
+function isPinned(userId, kind, key) {
+    return pins.has(`${int(userId)}:${kind}:${key}`);
+}
+
+function setPin(userId, kind, key, pinned) {
+    const uid = int(userId);
+    const k = `${uid}:${kind}:${key}`;
+    if (pinned) {
+        pins.set(k, true);
+        sqlite.prepare('INSERT OR IGNORE INTO pins(user_id, kind, key, created_at) VALUES (?, ?, ?, ?)').run(uid, kind, key, nowIso());
+    } else {
+        pins.delete(k);
+        sqlite.prepare('DELETE FROM pins WHERE user_id = ? AND kind = ? AND key = ?').run(uid, kind, key);
+    }
+}
+
+function getLastDmMessageAt(userId, peerId) {
+    const row = sqlite.prepare('SELECT MAX(created_at) AS t FROM dm_messages WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?)').get(int(userId), int(peerId), int(peerId), int(userId));
+    return row?.t || null;
+}
+
+function getLastChannelMessageAt(channel) {
+    const row = sqlite.prepare('SELECT MAX(created_at) AS t FROM messages WHERE channel = ?').get(channel);
+    return row?.t || null;
 }
 
 function userFromRow(row) {
@@ -652,5 +695,6 @@ module.exports = {
     resetAllMessages, getChannelClearTime, setChannelClearTime, getDmClearTime, setDmClearTime,
     clearDmDataBetween, isBlocked, addBlock, removeBlock, getBlockedUserIds,
     getChannelAlias, setChannelAlias,
-    createChannelInvite, getPendingChannelInvites, respondChannelInvite
+    createChannelInvite, getPendingChannelInvites, respondChannelInvite,
+    isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt
 };

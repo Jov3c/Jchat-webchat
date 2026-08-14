@@ -30,8 +30,9 @@
       </div>
       <Transition name="fold">
         <div v-if="sections.channels" class="section-body">
-          <div v-for="c in channels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" :title="'#' + (c.alias || c.name)">
+          <div v-for="c in sortedChannels" :key="c.name" class="chan" :class="{ 'is-active': c.name === activeChannel }" @click="selectChannel(c.name)" :title="'#' + (c.alias || c.name)">
             <span class="hash">#</span><span class="label">{{ c.alias || c.name }}</span>
+            <button v-if="c.ownerId != null" class="pin-btn" :class="{ on: c.pinned }" @click.stop="togglePin('channel', c.name, !c.pinned)" :title="c.pinned ? '取消置顶' : '置顶'">📌</button>
             <span v-if="getUnreadCount(keyForChannel(c.name))" class="unread-badge">{{ getUnreadCount(keyForChannel(c.name)) }}</span>
           </div>
         </div>
@@ -47,11 +48,12 @@
       </div>
       <Transition name="fold">
         <div v-if="sections.friends" class="section-body">
-          <div v-for="f in friends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
+          <div v-for="f in sortedFriends" :key="f.id" class="dm" :class="{ 'is-active': f.id === activePeerId }" @click="selectDm(f.id)" :title="f.nickname || f.username">
             <span class="avatar-click" @click.stop="openUserCard(f.id, $event)">
               <Avatar :name="f.nickname || f.username" :src="f.avatar" :presence="getLivePresence(f.id, f.presence_status)" />
             </span>
             <span class="name">{{ f.nickname || f.username }}</span>
+            <button class="pin-btn" :class="{ on: f.pinned }" @click.stop="togglePin('dm', f.id, !f.pinned)" :title="f.pinned ? '取消置顶' : '置顶'">📌</button>
             <span v-if="getUnreadCount(keyForDm(f.id))" class="unread-badge">{{ getUnreadCount(keyForDm(f.id)) }}</span>
           </div>
         </div>
@@ -131,6 +133,31 @@ const sections = ref({ channels: true, friends: true });
 
 const channelHasUnread = computed(() => channels.value.some(c => getUnreadCount(keyForChannel(c.name)) > 0));
 const friendHasUnread = computed(() => friends.value.some(f => getUnreadCount(keyForDm(f.id)) > 0));
+
+function byRecent(a, b) {
+  const ta = a.last_message_at || '';
+  const tb = b.last_message_at || '';
+  if (ta === tb) return 0;
+  return ta > tb ? -1 : 1;
+}
+
+const sortedChannels = computed(() => [...channels.value].sort((a, b) => {
+  if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+  return byRecent(a, b);
+}));
+
+const sortedFriends = computed(() => [...friends.value].sort((a, b) => {
+  if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+  return byRecent(a, b);
+}));
+
+async function togglePin(kind, key, pinned) {
+  try {
+    await http.put('/api/pin', { kind, key, pinned });
+    if (kind === 'channel') reloadChannels();
+    else reloadFriends();
+  } catch { /* 忽略 */ }
+}
 
 const STATUS_OPTIONS = [
   { value: 'online', label: '在线' },
@@ -344,6 +371,14 @@ onBeforeUnmount(unbindIdle);
   flex: none; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px;
   background: var(--red); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center;
 }
+.pin-btn {
+  flex: none; border: 0; background: transparent; color: var(--faint);
+  width: 20px; height: 20px; border-radius: 5px; cursor: pointer; font-size: 12px; line-height: 1;
+  display: grid; place-items: center; opacity: 0; transition: opacity 0.1s ease;
+}
+.chan:hover .pin-btn, .dm:hover .pin-btn, .pin-btn.on { opacity: 1; }
+.pin-btn.on { color: var(--accent-strong); }
+.pin-btn:hover { background: var(--hover); }
 
 .me {
   position: relative; display: flex; align-items: center; gap: 10px;
