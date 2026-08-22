@@ -8,18 +8,18 @@ Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应�
 
 ### 聊天界面
 
-![Jchat 聊天界面](docs/images/jchat-chat.png)
+![Jchat 聊天界面](images/jchat-chat.png)
 
 <details>
 <summary>查看更多页面</summary>
 
 ### 登录界面
 
-![Jchat 登录界面](docs/images/jchat-login.png)
+![Jchat 登录界面](images/jchat-login.png)
 
 ### 管理后台
 
-![Jchat 管理后台](docs/images/jchat-admin.png)
+![Jchat 管理后台](images/jchat-admin.png)
 
 </details>
 
@@ -186,7 +186,7 @@ Jchat-webchat/
 ├── public/              # 静态资源与上传：图片、视频、用户上传（不提交到 Git）
 ├── tests/               # 后端自动化测试
 ├── scripts/             # 数据重置脚本
-├── docs/                # 文档与预览图
+├── images/              # README 界面预览图
 ├── index.js             # 服务入口（API、静态资源与 Socket.IO）
 └── package.json
 ```
