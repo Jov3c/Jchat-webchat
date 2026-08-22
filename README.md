@@ -1,10 +1,8 @@
 # Jchat-JoyChat
 
-Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应用，包含公共和私有频道、好友私聊、在线状态、媒体消息与管理后台。
+Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应用，前端使用 Vue 3 + Vite。支持公共/私有频道、好友私聊（端到端加密）、在线状态、媒体消息与管理后台。
 
 > 当前版本：`v2.2.0`。运行时使用 Node.js 24 LTS（`>=24 <25`）与 npm 11。
-
-本轮安全、依赖与部署优化详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 页面预览
 
@@ -27,10 +25,15 @@ Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应�
 
 ## 主要功能
 
-- 实时频道聊天、私有频道成员控制与好友私聊。
-- 图片、语音、Bilibili 链接与自定义表情包。
-- JWT 会话、单会话登录、在线状态、撤回与回复。
-- SQLite 持久化、私聊端到端加密（E2EE）、管理后台与日志审计。
+- **实时聊天**：公共/私有频道、好友私聊，消息实时推送。
+- **端到端加密（E2EE）**：私聊用 ECDH + AES-256-GCM 加密，服务器只存密文，无法解密（详见下文）。
+- **协作功能**：@提及与提醒、历史消息搜索、文件/图片/语音分享、消息回应（表情）、撤回与回复。
+- **消息管理**：未读计数与红点、会话置顶、按最近排序、跳到第一条未读。
+- **好友与个人资料**：好友申请与同意、头像上传、资料编辑、在线状态点。
+- **频道管理**：创建/邀请（需对方同意）/改名/解散、成员列表与在线状态。
+- **管理后台**：用户与频道管理、日志审计。
+- **账号安全**：JWT 会话、单会话登录（顶号冻结）、登录/注册/上传限流。
+- **界面**：深色模式、响应式三栏布局。
 
 ## 端到端加密（E2EE）
 
@@ -63,7 +66,7 @@ Jchat-JoyChat 使用单一 Node.js 进程，不依赖 MySQL、PostgreSQL、Redis
 | 组件 | 版本/要求 | 用途 |
 | --- | --- | --- |
 | Node.js | 24 LTS（`>=24 <25`） | HTTP、SQLite、API 与实时服务运行时 |
-| npm | 11 | 安装锁定依赖并运行脚本 |
+| Vue 3 + Vite | `^3.5` / `^6.0` | 前端框架与构建（`client/`） |
 | Express | `^4.22.2` | 页面与 API 服务 |
 | Socket.IO | `^4.8.3` | 实时频道和私聊通信 |
 | bcrypt | `^6.0.0` | 用户与管理员密码哈希 |
@@ -75,6 +78,8 @@ Jchat-JoyChat 使用单一 Node.js 进程，不依赖 MySQL、PostgreSQL、Redis
 
 ```bash
 npm ci --omit=dev
+npm ci --prefix client
+npm run build --prefix client
 ```
 
 `bcrypt` 和 `sharp` 通常使用预编译二进制；如果目标平台没有对应构建产物，还需要 Python 3、Make 和 C/C++ 编译工具链。应用默认只监听一个 `PORT`（默认 `3000`），公网部署建议由 HTTPS 反向代理转发到该端口。
@@ -84,10 +89,12 @@ npm ci --omit=dev
 ### 安装与启动
 
 ```bash
-git clone https://github.com/Jov3c/Jchat.git
-cd Jchat-JoyChat
-npm install
-npm start
+git clone https://github.com/Jov3c/Jchat-webchat.git
+cd Jchat-webchat
+npm install                     # 安装后端依赖
+npm install --prefix client     # 安装前端依赖
+npm run build --prefix client   # 构建前端（生成 client/dist）
+npm start                       # 启动服务
 ```
 
 Jchat-JoyChat 使用单一 Node.js 服务：聊天页面、登录、后台、API 和 Socket.IO 都由 `http://localhost:3000` 提供。后台地址为 `http://localhost:3000/admin`。
@@ -159,10 +166,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## 常用命令
 
 ```bash
-npm start            # 启动网页、API 和 Socket.IO
-npm run dev          # 监听并重启单一服务
-npm test             # 运行自动化测试
-npm run reset-data   # 清空运行数据并恢复本地默认管理员
+npm start                       # 启动网页、API 和 Socket.IO
+npm run dev                     # 监听并重启单一服务
+npm test                        # 运行后端自动化测试
+npm test --prefix client        # 运行前端自动化测试
+npm run build --prefix client   # 构建前端（生成 client/dist）
+npm run reset-data              # 清空运行数据并恢复本地默认管理员
 ```
 
 `reset-data` 会删除用户、频道、消息、好友关系和用户上传内容，同时将普通登录和后台登录的管理员账号统一恢复为 `admin/admin123`（开发环境）。运行前请先备份需要保留的数据。
@@ -170,16 +179,15 @@ npm run reset-data   # 清空运行数据并恢复本地默认管理员
 ## 项目结构
 
 ```text
-Jchat/
-├── public/              # 页面、样式、浏览器脚本与静态媒体
-│   ├── uploads/         # 用户上传目录（不提交到 Git）
-│   └── js/
-├── server/              # SQLite、会话、加密、日志与校验模块
+Jchat-webchat/
+├── client/              # Vue 3 + Vite 前端（源码在 src/，构建产物在 dist/）
+├── server/              # 后端模块：数据库、加密、日志、校验、路由、Socket
 │   └── data/            # 运行时数据库与管理员凭据（不提交到 Git）
+├── public/              # 静态资源与上传：图片、视频、用户上传（不提交到 Git）
+├── tests/               # 后端自动化测试
 ├── scripts/             # 数据重置脚本
-├── tests/               # 自动化测试
-├── docs/images/         # README 预览图
-├── index.js             # API 与 Socket.IO 入口
+├── docs/                # 文档与预览图
+├── index.js             # 服务入口（API、静态资源与 Socket.IO）
 └── package.json
 ```
 
@@ -187,7 +195,7 @@ Jchat/
 
 - 默认数据库：`server/data/jchat.sqlite`
 - 默认上传目录：`public/uploads/`
-- 测试命令：`npm test`
+- 测试命令：`npm test`（后端）、`npm test --prefix client`（前端）
 - 不要提交 `.env`、数据库、管理员凭据、日志或上传文件。
 
 ## License
