@@ -25,3 +25,6 @@ server/logs/
 
 # Scratch / temp working files
 _work/
+
+# Frontend build output
+client/dist/
