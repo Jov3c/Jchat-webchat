@@ -6,7 +6,6 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const vm = require('node:vm');
 
 function getFreePort() {
     return new Promise((resolve, reject) => {
@@ -121,7 +120,7 @@ test('CI and server output reference only existing single-service entrypoints', 
     const projectRoot = path.join(__dirname, '..');
     const workflow = fs.readFileSync(path.join(projectRoot, '.github', 'workflows', 'ci.yml'), 'utf8');
     const checkedFiles = [...workflow.matchAll(/node --check ([^\s]+)/g)].map(match => match[1]);
-    assert.deepEqual(checkedFiles, ['index.js', 'scripts/reset-data.js', 'public/js/chat.js']);
+    assert.deepEqual(checkedFiles, ['index.js', 'scripts/reset-data.js']);
     for (const checkedFile of checkedFiles) {
         assert.equal(fs.existsSync(path.join(projectRoot, checkedFile)), true, `${checkedFile} exists`);
     }
@@ -131,15 +130,9 @@ test('CI and server output reference only existing single-service entrypoints', 
     assert.doesNotMatch(serverSource, /API only|SERVE_FRONTEND/);
 });
 
-test('browser Socket.IO defaults to the page origin for a single-service deployment', () => {
-    const chatJs = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'chat.js'), 'utf8');
-    const match = chatJs.match(/function resolveSocketUrl\(\) \{[\s\S]*?\n\}/);
-    assert.ok(match, 'chat.js exposes a dedicated Socket.IO URL resolver');
-    const resolve = (location, API_ORIGIN, JCHAT_API_PORT) => vm.runInNewContext(`${match[0]}; resolveSocketUrl()`, {
-        window: { location, API_ORIGIN, JCHAT_API_PORT }
-    });
-    assert.equal(resolve({ protocol: 'http:', hostname: 'localhost', port: '3001', origin: 'http://localhost:3001' }), 'http://localhost:3001');
-    assert.equal(resolve({ protocol: 'http:', hostname: '192.168.1.20', port: '3001', origin: 'http://192.168.1.20:3001' }), 'http://192.168.1.20:3001');
-    assert.equal(resolve({ protocol: 'https:', hostname: 'chat.example', port: '', origin: 'https://chat.example' }), 'https://chat.example');
-    assert.equal(resolve({ protocol: 'https:', hostname: 'chat.example', port: '', origin: 'https://chat.example' }, 'https://api.example'), 'https://api.example');
+test('browser Socket.IO client connects to the same origin for a single-service deployment', () => {
+    const socketClient = fs.readFileSync(path.join(__dirname, '..', 'client', 'src', 'api', 'socket.js'), 'utf8');
+    // 单服务部署：socket.io-client 不指定 URL，默认连接页面同源
+    assert.match(socketClient, /io\(\{ transports: \['websocket', 'polling'\] \}\)/);
+    assert.doesNotMatch(socketClient, /API_ORIGIN|http[s]?:\/\//, 'socket must not hardcode a cross-origin URL');
 });

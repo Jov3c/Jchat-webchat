@@ -114,18 +114,3 @@ test('uploads require a session, use its user identity, and reject disallowed or
     const oversized = await requestJson(`${baseUrl}/api/upload/image`, uploadOptions(owner.token, oversizedForm));
     assert.equal(oversized.response.status, 413, 'oversized uploads are rejected before processing');
 });
-
-test('browser upload requests use page-isolated JWT authentication instead of a form userId', () => {
-    const projectRoot = path.join(__dirname, '..');
-    const chatJs = fs.readFileSync(path.join(projectRoot, 'public', 'js', 'chat.js'), 'utf8');
-    const registerJs = fs.readFileSync(path.join(projectRoot, 'public', 'js', 'register.js'), 'utf8');
-
-    for (const route of ['/api/upload/avatar', '/api/upload/image', '/api/upload/voice']) {
-        const escapedRoute = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        assert.match(chatJs, new RegExp(`fetch\\('${escapedRoute}',\\s*\\{[\\s\\S]{0,160}?headers:\\s*getAuthHeaders\\(\\)`, 'g'), `${route} must send the current page JWT`);
-    }
-    assert.match(registerJs, /window\.JchatAuthStorage\.getAuthToken\(\)/);
-    assert.match(registerJs, /fetch\('\/api\/upload\/avatar',[\s\S]{0,160}?Authorization': 'Bearer ' \+ token/);
-    assert.doesNotMatch(chatJs, /formData\.append\('userId'/);
-    assert.doesNotMatch(registerJs, /formData\.append\('userId'/);
-});

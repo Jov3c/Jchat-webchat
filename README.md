@@ -2,7 +2,7 @@
 
 Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应用，前端使用 Vue 3 + Vite。支持公共/私有频道、好友私聊（端到端加密）、在线状态、媒体消息与管理后台。
 
-> 当前版本：`v2.2.0`。运行时使用 Node.js 24 LTS（`>=24 <25`）与 npm 11。
+> 当前版本：`v2.3.0`。运行时使用 Node.js 24 LTS（`>=24 <25`）与 npm 11。
 
 ## 页面预览
 
@@ -183,7 +183,7 @@ Jchat-webchat/
 ├── client/              # Vue 3 + Vite 前端（源码在 src/，构建产物在 dist/）
 ├── server/              # 后端模块：数据库、加密、日志、校验、路由、Socket
 │   └── data/            # 运行时数据库与管理员凭据（不提交到 Git）
-├── public/              # 静态资源与上传：图片、视频、用户上传（不提交到 Git）
+├── public/              # 静态资源与上传：图片、用户上传（不提交到 Git）
 ├── tests/               # 后端自动化测试
 ├── scripts/             # 数据重置脚本
 ├── images/              # README 界面预览图

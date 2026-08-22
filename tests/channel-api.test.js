@@ -582,9 +582,3 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal(invitedMessages.response.status, 403);
     });
 });
-
-test('chat channel creation uses the persistent channel API', () => {
-    const chatScript = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'chat.js'), 'utf8');
-    assert.match(chatScript, /fetch\('\/api\/channels'/);
-    assert.doesNotMatch(chatScript, /Custom-\$\{Date\.now\(\)\}/);
-});

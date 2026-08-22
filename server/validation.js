@@ -47,12 +47,32 @@ function validateDeactivationReason(reason) {
     return { ok: true, value: s };
 }
 
+/**
+ * 校验媒体附件 URL（image / voice / file）。
+ * 只允许 uploads/ 开头的站内相对路径，或 http/https 的外链；
+ * 拒绝 javascript:、data:、vbscript: 等危险协议，防止存储型 XSS。
+ * 返回 { ok: false, error } 或 { ok: true, value: 清洗后的 URL 或 null }。
+ */
+function validateMediaUrl(url) {
+    if (url == null || url === '') return { ok: true, value: null };
+    if (typeof url !== 'string') return { ok: false, error: 'Invalid media URL' };
+    const trimmed = url.trim();
+    if (!trimmed) return { ok: true, value: null };
+    if (trimmed.startsWith('uploads/')) return { ok: true, value: trimmed };
+    try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return { ok: true, value: trimmed };
+    } catch { /* 解析失败走拒绝 */ }
+    return { ok: false, error: 'Invalid media URL' };
+}
+
 module.exports = {
     validateUsername,
     validatePassword,
     validateNickname,
     validateFriendReason,
     validateDeactivationReason,
+    validateMediaUrl,
     FRIEND_REASON_MAX_LENGTH,
     USERNAME_MIN_LENGTH,
     USERNAME_MAX_LENGTH,

@@ -122,7 +122,7 @@ const {
     emitChannelPresence, broadcastChannelPresence, broadcastAllChannelPresence, broadcastUserPresence
 } = createChannelHelpers({ db, presence, CHANNELS });
 
-const { validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason } = require('./server/validation');
+const { validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason, validateMediaUrl } = require('./server/validation');
 
 const ADMIN_CREDENTIALS_FILE = process.env.JCHAT_ADMIN_CREDENTIALS_FILE || path.join(__dirname, 'server', 'data', 'admin_credentials.json');
 const BCRYPT_HASH_PREFIX = /^\$2[aby]\$\d\d\$/;
@@ -373,7 +373,7 @@ registerRoutes(app, {
 
 registerSocketHandlers(io, {
     db, logger, jwt, JWT_SECRET, verifyCurrentUserToken, presence, badWordsFilter,
-    deleteRecallAttachment, DEFAULT_AVATAR,
+    deleteRecallAttachment, DEFAULT_AVATAR, validateMediaUrl,
     isValidChannel, canAccessChannel, isPrivateChannel,
     emitChannelPresence, broadcastUserPresence, broadcastAllChannelPresence
 });
@@ -445,7 +445,6 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const DIST_DIR = path.join(__dirname, 'client', 'dist');
 app.use('/uploads', express.static(path.join(PUBLIC_DIR, 'uploads')));
 app.use('/images', express.static(path.join(PUBLIC_DIR, 'images')));
-app.use('/videos', express.static(path.join(PUBLIC_DIR, 'videos')));
 app.use(express.static(DIST_DIR));
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));
 

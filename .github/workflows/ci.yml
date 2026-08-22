@@ -22,7 +22,6 @@ jobs:
       - run: npm run build --prefix client
       - run: node --check index.js
       - run: node --check scripts/reset-data.js
-      - run: node --check public/js/chat.js
       - run: npm test
       - run: npm test --prefix client
       - name: Audit production dependencies

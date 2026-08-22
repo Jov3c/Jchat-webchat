@@ -2,7 +2,7 @@
 function registerSocketHandlers(io, ctx) {
     const {
         db, logger, jwt, JWT_SECRET, verifyCurrentUserToken, presence, badWordsFilter,
-        deleteRecallAttachment, DEFAULT_AVATAR,
+        deleteRecallAttachment, DEFAULT_AVATAR, validateMediaUrl,
         isValidChannel, canAccessChannel, isPrivateChannel,
         emitChannelPresence, broadcastUserPresence, broadcastAllChannelPresence
     } = ctx;
@@ -114,12 +114,23 @@ function registerSocketHandlers(io, ctx) {
                 return;
             }
 
+            // 清洗媒体附件 URL：拒绝 javascript: 等危险协议，防止存储型 XSS
+            const media = { image, voice, file };
+            for (const key of ['image', 'voice', 'file']) {
+                const checked = validateMediaUrl(media[key]);
+                if (!checked.ok) {
+                    socket.emit('messageError', { error: '媒体地址不合法，消息已拒绝' });
+                    return;
+                }
+                media[key] = checked.value;
+            }
+
             const containsBadWords = badWordsFilter.containsBadWords(content);
 
-            const messageType = data.image ? 'image' : (data.voice ? 'voice' : 'text');
+            const messageType = media.image ? 'image' : (media.voice ? 'voice' : 'text');
             logger.chatLog(channel, userId, content, messageType, {
-                image: data.image,
-                voice: data.voice,
+                image: media.image,
+                voice: media.voice,
                 reply_to: data.reply_to,
                 is_blocked: containsBadWords
             });
@@ -136,9 +147,9 @@ function registerSocketHandlers(io, ctx) {
                 user_id: userId,
                 channel,
                 content,
-                image,
-                voice: data.voice,
-                file: data.file,
+                image: media.image,
+                voice: media.voice,
+                file: media.file,
                 file_name: data.file_name,
                 reply_to: data.reply_to,
                 is_blocked: containsBadWords
@@ -149,9 +160,9 @@ function registerSocketHandlers(io, ctx) {
                 user_id: userId,
                 channel: channel,
                 content: content,
-                image: image,
-                voice: newMessage.voice,
-                file: newMessage.file,
+                image: media.image,
+                voice: media.voice,
+                file: media.file,
                 file_name: newMessage.file_name,
                 created_at: newMessage.created_at,
                 username: user.username,
@@ -224,13 +235,25 @@ function registerSocketHandlers(io, ctx) {
                 socket.emit('privateMessageError', { error: '消息被对方拒收了', code: 'blocked' });
                 return;
             }
+
+            // 清洗媒体附件 URL：拒绝 javascript: 等危险协议，防止存储型 XSS
+            const dmMedia = { image, voice, file };
+            for (const key of ['image', 'voice', 'file']) {
+                const checked = validateMediaUrl(dmMedia[key]);
+                if (!checked.ok) {
+                    socket.emit('privateMessageError', { error: '媒体地址不合法，消息已拒绝' });
+                    return;
+                }
+                dmMedia[key] = checked.value;
+            }
+
             const newMessage = db.insertDmMessage({
                 from_user_id: fromId,
                 to_user_id: toId,
                 content,
-                image,
-                voice,
-                file,
+                image: dmMedia.image,
+                voice: dmMedia.voice,
+                file: dmMedia.file,
                 file_name,
                 reply_to: reply_to != null ? reply_to : undefined
             });

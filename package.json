@@ -1,6 +1,6 @@
 {
   "name": "jchat-joychat",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Jchat-JoyChat: a lightweight real-time chat application built with Node.js, Socket.IO and SQLite.",
   "main": "index.js",
   "engines": {
@@ -33,7 +33,7 @@
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
-    "express": "^4.22.2",
+    "express": "^5.2.1",
     "jsonwebtoken": "^9.0.0",
     "multer": "^2.2.0",
     "sharp": "^0.35.3",
@@ -45,7 +45,6 @@
   "overrides": {
     "body-parser": "1.20.6",
     "engine.io": "6.6.7",
-    "path-to-regexp": "0.1.13",
     "qs": "6.15.3",
     "socket.io-adapter": "2.5.8",
     "socket.io-parser": "4.2.7"
