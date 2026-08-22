@@ -18,9 +18,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm ci --prefix client
+      - run: npm run build --prefix client
       - run: node --check index.js
       - run: node --check scripts/reset-data.js
       - run: node --check public/js/chat.js
       - run: npm test
+      - run: npm test --prefix client
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=critical
