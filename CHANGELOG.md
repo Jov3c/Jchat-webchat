@@ -39,6 +39,9 @@
 - 依赖升级：后端 Express 4→5（移除 path-to-regexp 旧锁版），前端 Vite 6→8、vue-router 4→5、@vitejs/plugin-vue 5→6、vitest 升级；`npm audit` 零漏洞。
 - 移除已废弃的旧静态前端（`public/` 下的 HTML/CSS/JS 及配套测试），主程序只服务 Vue 前端；新增 `public/images/` 默认头像保留。
 - 安全加固：新增媒体 URL 校验（`validateMediaUrl`），消息与私聊的图片/语音/文件地址仅允许站内 `uploads/` 或 http/https，拒绝 `javascript:`、`data:` 等危险协议，防存储型 XSS。
+- 新增表情选择器：输入框表情按钮弹出面板，常用 emoji 一键插入。
+- 新增自定义表情包：图片消息可一键收藏为表情包，也可上传本地图片；表情包仅自己可见（`/api/stickers`），面板内分页展示、可删除，点击直接作为图片消息发送。
+- 新增 B 站视频卡片：消息中粘贴 B 站链接（BV 号），自动渲染官方播放器（16:9 iframe）。
 - 项目版本升至 `v2.3.0`。
 - CI 增加前端依赖安装、构建与前端测试步骤。
 

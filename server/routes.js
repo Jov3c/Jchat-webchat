@@ -21,7 +21,7 @@ module.exports = function registerRoutes(app, ctx) {
         isValidChannel, isPrivateChannel, canAccessChannel, getAvailableChannels,
         getChannelMemberSummaries, getPublicChannelMembers, broadcastChannelPresence,
         getChannelOnlineCount, broadcastUserPresence, broadcastAllChannelPresence,
-        validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason,
+        validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason, validateMediaUrl,
         isStrongAdminPassword, writeAdminCredentials, ensureAdministratorUser, saveAdminCredentials
     } = ctx;
 
@@ -1198,5 +1198,24 @@ app.delete('/api/dm/messages/:messageId', authenticateUser, requireUser, (req, r
     if (!result.ok) return res.status(404).json({ error: 'Message not found' });
     io.to(`user:${req.userId}`).emit('dmMessageDeleted', { messageId: parseInt(messageId) });
     res.json({ success: true });
+});
+
+// 自定义表情包（仅自己可见）
+app.get('/api/stickers', authenticateUser, requireUser, (req, res) => {
+    res.json({ stickers: db.getStickers(req.userId) });
+});
+
+app.post('/api/stickers', authenticateUser, requireUser, (req, res) => {
+    const checked = validateMediaUrl(req.body?.url);
+    if (!checked.ok) return res.status(400).json({ error: '表情包地址不合法' });
+    const sticker = db.addSticker(req.userId, checked.value);
+    if (!sticker) return res.status(400).json({ error: '添加表情包失败' });
+    res.status(201).json({ sticker, stickers: db.getStickers(req.userId) });
+});
+
+app.delete('/api/stickers/:stickerId', authenticateUser, requireUser, (req, res) => {
+    const ok = db.deleteSticker(req.params.stickerId, req.userId);
+    if (!ok) return res.status(404).json({ error: '表情包不存在' });
+    res.json({ success: true, stickers: db.getStickers(req.userId) });
 });
 };

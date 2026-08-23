@@ -159,6 +159,13 @@ sqlite.exec(`
     PRIMARY KEY (message_id, user_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS stickers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 const channelColumns = sqlite.prepare('PRAGMA table_info(channels)').all();
@@ -339,6 +346,29 @@ function toggleReaction(messageId, userId, emoji) {
         sqlite.prepare('INSERT INTO reactions(message_id, user_id, emoji) VALUES (?, ?, ?) ON CONFLICT(message_id, user_id) DO UPDATE SET emoji = excluded.emoji').run(mid, uid, emoji);
     }
     return getReactions(mid);
+}
+
+function getStickers(userId) {
+    const uid = int(userId);
+    if (!validInt(uid)) return [];
+    return sqlite.prepare('SELECT id, url, created_at FROM stickers WHERE user_id = ? ORDER BY id DESC').all(uid).map(asObject);
+}
+
+function getStickerById(id, userId) {
+    const row = sqlite.prepare('SELECT id, url, created_at FROM stickers WHERE id = ? AND user_id = ?').get(int(id), int(userId));
+    return row ? asObject(row) : null;
+}
+
+function addSticker(userId, url) {
+    const uid = int(userId);
+    if (!validInt(uid) || typeof url !== 'string' || !url) return null;
+    const result = sqlite.prepare('INSERT INTO stickers(user_id, url) VALUES (?, ?)').run(uid, url);
+    return getStickerById(result.lastInsertRowid, uid);
+}
+
+function deleteSticker(id, userId) {
+    const result = sqlite.prepare('DELETE FROM stickers WHERE id = ? AND user_id = ?').run(int(id), int(userId));
+    return result.changes > 0;
 }
 
 function userFromRow(row) {
@@ -792,5 +822,6 @@ module.exports = {
     getChannelAlias, setChannelAlias,
     createChannelInvite, getPendingChannelInvites, respondChannelInvite,
     isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt,
-    markRead, getUnreadCount, getReactions, toggleReaction
+    markRead, getUnreadCount, getReactions, toggleReaction,
+    getStickers, getStickerById, addSticker, deleteSticker
 };

@@ -367,7 +367,7 @@ registerRoutes(app, {
     isValidChannel, isPrivateChannel, canAccessChannel, getAvailableChannels,
     getChannelMemberSummaries, getPublicChannelMembers, broadcastChannelPresence,
     getChannelOnlineCount, broadcastUserPresence, broadcastAllChannelPresence,
-    validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason,
+    validateUsername, validatePassword, validateNickname, validateFriendReason, validateDeactivationReason, validateMediaUrl,
     isStrongAdminPassword, writeAdminCredentials, ensureAdministratorUser, saveAdminCredentials
 });
 

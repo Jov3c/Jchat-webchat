@@ -12,7 +12,10 @@
         <span class="reply-who">{{ message.reply_info.nickname || message.reply_info.username || '用户' }}</span>
         <span class="reply-content">{{ message.reply_info.content || (message.reply_info.image ? '[图片]' : '[消息已撤回]') }}</span>
       </div>
-      <div v-if="message.image" class="img-card"><img :src="message.image" alt="图片" /></div>
+      <div v-if="message.image" class="img-card">
+        <img :src="message.image" alt="图片" />
+        <button class="sticker-collect" aria-label="收藏为表情包" title="收藏为表情包" @click.stop="collectSticker">＋</button>
+      </div>
       <div v-if="message.voice" class="media"><audio :src="message.voice" controls /></div>
       <div v-if="message.file" class="file-card">
         <a :href="message.file" target="_blank" download>
@@ -26,6 +29,7 @@
           <template v-else>{{ part.text }}</template>
         </template>
       </div>
+      <div v-if="biliHtml" class="bili-player" v-html="biliHtml"></div>
       <div v-if="isChannelMsg" class="react">
         <span v-for="r in reactions" :key="r.emoji" class="react-pill" :class="{ on: reacted(r) }" @click="toggleReaction(r.emoji)">
           {{ r.emoji }} <span class="count">{{ r.count }}</span>
@@ -44,6 +48,8 @@ import { computed, ref } from 'vue';
 import { http } from '../api/http.js';
 import { getUser } from '../stores/auth.js';
 import { openUserCard } from '../stores/userCard.js';
+import { addSticker } from '../stores/stickers.js';
+import { extractBilibiliBvids, bilibiliPlayerHtml } from '../utils/bilibili.js';
 import Avatar from './Avatar.vue';
 
 const props = defineProps({ message: Object, mine: Boolean });
@@ -67,11 +73,26 @@ async function toggleReaction(emoji) {
   } catch { /* 忽略 */ }
 }
 
+// 收藏图片消息为自定义表情包（仅自己可见）
+async function collectSticker() {
+  if (!props.message.image) return;
+  try {
+    const data = await http.post('/api/stickers', { url: props.message.image });
+    if (data.sticker) addSticker(data.sticker);
+  } catch { /* 忽略 */ }
+}
+
 // 该消息是否 @ 提及了当前用户
 const mentionsMe = computed(() => {
   if (!myUsername) return false;
   const re = new RegExp('@' + myUsername + '(?![a-zA-Z0-9_])');
   return re.test(props.message.content || '');
+});
+
+// 消息正文中的 B站视频：取第一个 BV 号渲染播放器卡片
+const biliHtml = computed(() => {
+  const bvids = extractBilibiliBvids(props.message.content || '');
+  return bvids.length ? bilibiliPlayerHtml(bvids[0]) : '';
 });
 
 function goProfile(event) {
@@ -142,8 +163,15 @@ const contentParts = computed(() => {
 }
 .react-opt { border: 0; background: transparent; font-size: 16px; cursor: pointer; padding: 2px 5px; border-radius: 6px; }
 .react-opt:hover { background: var(--hover); }
-.img-card { margin-top: 8px; max-width: 360px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.bili-player { margin-top: 8px; max-width: 480px; }
+.bili-player iframe { display: block; }
+.img-card { position: relative; margin-top: 8px; max-width: 360px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .img-card img { width: 100%; display: block; }
+.sticker-collect {
+  position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border: 0; border-radius: 50%;
+  background: rgba(0,0,0,.45); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.sticker-collect:hover { background: rgba(0,0,0,.7); }
 .media { margin-top: 8px; }
 .media audio { max-width: 300px; }
 .file-card { margin-top: 8px; }

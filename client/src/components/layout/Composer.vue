@@ -26,31 +26,41 @@
         @keydown="onKeydown"
       ></textarea>
       <div class="composer-bar">
-        <button class="icon-btn" aria-label="表情" title="表情">
+        <button class="icon-btn" :class="{ active: stickerOpen }" aria-label="表情" title="表情" @click="toggleSticker">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.2 1.8 3.5 1.8 3.5-1.8 3.5-1.8"/><circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none"/></svg>
         </button>
         <button class="icon-btn" aria-label="附件" title="发送文件" @click="fileInput.click()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 12-7.5 7.5a5.5 5.5 0 0 1-7.8-7.8L13 4.5a3.6 3.6 0 0 1 5.1 5.1L11 17"/></svg>
         </button>
         <input ref="fileInput" type="file" style="display: none" @change="onFileChange" />
+        <input ref="stickerInput" type="file" accept="image/*" style="display: none" @change="onStickerUpload" />
         <span class="spacer"></span>
         <button class="send" @click="send" :disabled="!text.trim()">
           发送
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-4 14-3-5-7-2z"/></svg>
         </button>
       </div>
+      <StickerPicker
+        v-if="stickerOpen"
+        @select-emoji="insertEmoji"
+        @select-sticker="sendSticker"
+        @upload-sticker="stickerInput.click()"
+        @remove-sticker="removeSticker"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { http } from '../../api/http.js';
 import { getSocket } from '../../api/socket.js';
 import { getToken } from '../../stores/auth.js';
 import { getFriendPublicKey, useFriends } from '../../stores/friends.js';
 import { useKeys, getOrDeriveMessageKey } from '../../stores/keys.js';
 import { encryptMessage } from '../../stores/e2ee.js';
+import { useStickers, setStickers, addSticker, removeSticker as dropSticker } from '../../stores/stickers.js';
+import StickerPicker from '../StickerPicker.vue';
 
 const props = defineProps({ channel: String, peerId: Number, replyTo: Object });
 const emit = defineEmits(['clear-reply']);
@@ -58,11 +68,14 @@ const text = ref('');
 
 const textareaRef = ref(null);
 const fileInput = ref(null);
+const stickerInput = ref(null);
+const stickerOpen = ref(false);
 const mentionOpen = ref(false);
 const mentionQuery = ref('');
 const mentionIndex = ref(0);
 const members = ref([]);
 const friendsState = useFriends();
+const stickers = useStickers();
 
 const placeholder = computed(() => {
   if (props.peerId != null) return '发送私聊消息';
@@ -173,6 +186,63 @@ async function onFileChange(e) {
     e.target.value = '';
   }
 }
+
+// —— 表情选择器 ——
+function toggleSticker() {
+  stickerOpen.value = !stickerOpen.value;
+  if (stickerOpen.value) loadStickers();
+}
+async function loadStickers() {
+  try {
+    const data = await http.get('/api/stickers');
+    setStickers(data.stickers || []);
+  } catch { /* 忽略 */ }
+}
+function insertEmoji(emoji) {
+  text.value += emoji;
+  stickerOpen.value = false;
+  nextTick(() => textareaRef.value?.focus());
+}
+async function sendSticker(url) {
+  stickerOpen.value = false;
+  const socket = getSocket();
+  if (props.peerId != null) {
+    socket.emit('sendPrivateMessage', { toUserId: props.peerId, content: '', image: url });
+  } else if (props.channel) {
+    socket.emit('sendMessage', { channel: props.channel, content: '', image: url });
+  }
+}
+async function onStickerUpload(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await fetch('/api/upload/image', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + getToken() },
+      body: form
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || '上传失败');
+    const added = await http.post('/api/stickers', { url: data.image });
+    if (added.sticker) addSticker(added.sticker);
+  } catch { /* 上传失败忽略 */ } finally {
+    e.target.value = '';
+  }
+}
+async function removeSticker(id) {
+  try {
+    const data = await http.del(`/api/stickers/${id}`);
+    if (data.stickers) setStickers(data.stickers);
+  } catch { /* 忽略 */ }
+}
+// 点击外部关闭表情面板
+function onDocClick(e) {
+  if (stickerOpen.value && !e.target.closest('.composer-box')) stickerOpen.value = false;
+}
+onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
+document.addEventListener('click', onDocClick);
 </script>
 
 <style scoped>
