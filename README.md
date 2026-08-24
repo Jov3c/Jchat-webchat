@@ -4,6 +4,19 @@ Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应�
 
 > 当前版本：`v2.3.0`。运行时使用 Node.js 24 LTS（`>=24 <25`）与 npm 11。
 
+## 技术栈（使用语言）
+
+| 层 | 语言 / 技术 | 说明 |
+| --- | --- | --- |
+| 后端 | **JavaScript**（Node.js 24 LTS，CommonJS） | Express 5 + Socket.IO + SQLite（`node:sqlite`），单进程服务 |
+| 前端 | **JavaScript**（Vue 3 组合式 API，ESM） | Vite 8 构建、vue-router 5、响应式 stores（类 Pinia） |
+| 数据库 | SQLite（SQL） | Node 24 内置，零外部依赖；`server/data/jchat.sqlite` |
+| 样式 | CSS | `client/src/styles/tokens.css`（CSS 变量）+ 组件内 scoped 样式 |
+| 密码学 / 安全 | WebCrypto、bcrypt、JWT | 私聊 ECDH P-256 + AES-256-GCM；密码 bcrypt；会话 JWT |
+| 测试 | Node test runner + Vitest | 后端 `npm test`，前端 `npm test --prefix client` |
+
+> 全项目为纯 JavaScript（无 TypeScript），代码注释以中文为主。
+
 ## 页面预览
 
 ### 聊天界面
@@ -52,6 +65,20 @@ Jchat-JoyChat 是一个基于 Node.js、Socket.IO 与 SQLite 的实时聊天应�
 > 🔑 **密码就是你的私聊钥匙**：私钥由登录密码派生密钥加密，密码强度决定私聊隐私强度。忘记密码或密码被猜到，私聊内容将无法恢复或可能被解密，请务必使用强密码。
 
 旧的服务器端加密私聊消息（`enc:` 前缀）仍可正常显示，新消息一律走 E2EE。
+
+## 部署方式（含 HTTPS）
+
+提供三种部署方式，完整步骤见 [deploy/README.md](deploy/README.md)：
+
+| 方式 | 适用场景 | HTTPS | 难度 |
+| --- | --- | --- | --- |
+| **Windows 一键脚本**（推荐） | 家里/公司局域网自用 | 自签证书（每台设备首次提示一次） | 双击即可 |
+| **Linux 脚本** | 有 Linux 服务器 + 域名，公网对外 | Let's Encrypt 正式证书（Caddy） | 中等 |
+| **Docker + Caddy** | 会 Docker，容器化部署 | Let's Encrypt 正式证书 | 中等 |
+
+**Windows 局域网（最快上手）**：双击 `deploy/windows/deploy.ps1`，脚本自动完成「装依赖 → 构建前端 → 生成密钥/管理员密码 → 生成 HTTPS 自签证书 → 启动」。浏览器访问 `https://电脑IP:3000`，首次点「高级 → 继续前往」即可。日常启动用 `deploy/windows/start-joychat.bat`。
+
+> ⚠️ 私聊端到端加密依赖浏览器 WebCrypto，**必须走 HTTPS**（哪怕自签证书）。任何 HTTP 访问都会自动降级为明文（不报错），私聊不再安全。
 
 ## 快速开始
 
@@ -102,7 +129,7 @@ npm start                       # 启动服务
 
 Jchat-JoyChat 使用单一 Node.js 服务：聊天页面、登录、后台、API 和 Socket.IO 都由 `http://localhost:3000` 提供。后台地址为 `http://localhost:3000/admin`。
 
-> `.env.example` 只是模板。项目读取的是**启动进程环境变量**，不会自动加载 `.env`；请使用 shell、服务管理器、容器编排或受控的环境加载器注入配置。
+> 项目根目录的 `.env` 会被 `npm start` 自动读取（`node --env-file-if-exists=.env`）；也可以用 shell、服务管理器或容器编排注入环境变量。`.env.example` 只是模板。
 
 ## 环境变量
 
@@ -185,13 +212,23 @@ npm run reset-data              # 清空运行数据并恢复本地默认管理�
 ```text
 Jchat-webchat/
 ├── client/              # Vue 3 + Vite 前端（源码在 src/，构建产物在 dist/）
+│   └── src/
+│       ├── api/         # HTTP 与 Socket.IO 客户端
+│       ├── components/  # 组件（消息气泡、表情面板、布局等）
+│       ├── stores/      # 响应式状态（认证、频道、好友、E2EE、表情包…）
+│       ├── utils/       # 工具（B 站链接解析等）
+│       ├── views/       # 页面（登录、注册、聊天、资料、管理后台）
+│       └── styles/      # 设计令牌与基础样式
 ├── server/              # 后端模块：数据库、加密、日志、校验、路由、Socket
 │   └── data/            # 运行时数据库与管理员凭据（不提交到 Git）
-├── public/              # 静态资源与上传：图片、用户上传（不提交到 Git）
-├── tests/               # 后端自动化测试
+├── public/              # 静态资源与上传：图片、用户上传（uploads 不提交到 Git）
+├── tests/               # 后端自动化测试（node --test）
 ├── scripts/             # 数据重置脚本
+├── deploy/              # 部署脚本与指南（windows / linux / docker）
 ├── images/              # README 界面预览图
-├── index.js             # 服务入口（API、静态资源与 Socket.IO）
+├── index.js             # 服务入口（API、静态资源与 Socket.IO，支持可选 HTTPS）
+├── Dockerfile           # 容器镜像构建
+├── AGENT.md             # 给 AI 开发助手看的项目说明
 └── package.json
 ```
 
