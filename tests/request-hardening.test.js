@@ -107,7 +107,7 @@ test('request hardening limits bodies and abusive login attempts while allowing 
 
 test('package scripts expose a single-service startup only', () => {
     const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-    assert.equal(packageJson.scripts.start, 'node index.js');
+    assert.equal(packageJson.scripts.start, 'node --env-file-if-exists=.env index.js');
     assert.equal(packageJson.scripts.dev, 'nodemon index.js');
     assert.equal(packageJson.scripts['start-all'], undefined);
     assert.equal(packageJson.scripts.frontend, undefined);

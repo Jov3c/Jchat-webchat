@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const socketIo = require('socket.io');
 const path = require('path');
 const cors = require('cors');
@@ -24,8 +25,15 @@ const registerSocketHandlers = require('./server/socket');
 const registerRoutes = require('./server/routes');
 const DEFAULT_AVATAR = 'images/default.png';
 const app = express();
-const server = http.createServer(app);
+// 可选 HTTPS：设置 SSL_CERT_FILE / SSL_KEY_FILE（PEM 证书与私钥路径）时，用 HTTPS 监听同一端口
+const SSL_CERT_FILE = process.env.SSL_CERT_FILE;
+const SSL_KEY_FILE = process.env.SSL_KEY_FILE;
+const USE_HTTPS = Boolean(SSL_CERT_FILE && SSL_KEY_FILE);
+const server = USE_HTTPS
+    ? https.createServer({ cert: fs.readFileSync(SSL_CERT_FILE), key: fs.readFileSync(SSL_KEY_FILE) }, app)
+    : http.createServer(app);
 const PORT = process.env.PORT || 3000;
+const PROTOCOL = USE_HTTPS ? 'https' : 'http';
 
 function parsePositiveInteger(value, fallback, minimum = 1, maximum = Number.MAX_SAFE_INTEGER) {
     const parsed = Number.parseInt(value, 10);
@@ -379,7 +387,7 @@ registerSocketHandlers(io, {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Jchat-JoyChat is running on http://localhost:${PORT}`);
+    console.log(`Jchat-JoyChat is running on ${PROTOCOL}://localhost:${PORT}`);
     console.log('Available addresses:');
 
     const os = require('os');
@@ -389,7 +397,7 @@ server.listen(PORT, '0.0.0.0', () => {
         const interfaces = networkInterfaces[ifaceName];
         for (const iface of interfaces) {
             if (iface.family === 'IPv4') {
-                console.log(`  http://${iface.address}:${PORT}`);
+                console.log(`  ${PROTOCOL}://${iface.address}:${PORT}`);
             }
         }
     }

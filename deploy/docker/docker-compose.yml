@@ -1,0 +1,53 @@
+# JoyChat 容器化部署（Docker + Caddy 自动 HTTPS）
+# 用法：
+#   cd deploy/docker
+#   cp .env.example .env        # 编辑填写密钥和域名
+#   docker compose up -d --build
+#
+# 访问：https://你的域名（Caddy 自动申请正式证书）
+# 局域网：CADDY_DOMAIN 填电脑/服务器 IP，访问 https://IP（首次提示，点继续）
+services:
+  joychat:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?在 deploy/docker/.env 里设置 JWT_SECRET}
+      DM_ENCRYPTION_KEY: ${DM_ENCRYPTION_KEY:?在 deploy/docker/.env 里设置 DM_ENCRYPTION_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?在 deploy/docker/.env 里设置 ADMIN_PASSWORD}
+      # 反向代理场景浏览器来源端口与后端不同，需显式放行访问来源
+      JCHAT_ALLOWED_ORIGINS: ${JCHAT_ALLOWED_ORIGINS:-}
+    volumes:
+      - jchat-data:/app/server/data
+      - jchat-uploads:/app/public/uploads
+    networks:
+      - jchat
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${CADDY_DOMAIN:?在 deploy/docker/.env 里设置 CADDY_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - joychat
+    networks:
+      - jchat
+
+volumes:
+  jchat-data:
+  jchat-uploads:
+  caddy-data:
+  caddy-config:
+
+networks:
+  jchat:

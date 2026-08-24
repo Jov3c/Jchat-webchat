@@ -1,0 +1,4 @@
+# Caddy 反向代理：自动 HTTPS（有域名用 Let's Encrypt 正式证书，局域网 IP 用内部证书）
+{$DOMAIN} {
+    reverse_proxy joychat:3000
+}

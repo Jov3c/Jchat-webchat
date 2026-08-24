@@ -135,6 +135,7 @@ Jchat-JoyChat 使用单一 Node.js 服务：聊天页面、登录、后台、API
 | `JCHAT_LOG_DIR` | `server/logs` | 日志目录。 |
 | `JCHAT_LOG_RETENTION_DAYS` | `30` | 日志保留天数（有效范围 1–3650）。 |
 | `JCHAT_LOG_CHAT_CONTENT` | `false` | 仅设为 `true` 时记录聊天正文；默认仅保留长度和元数据。 |
+| `SSL_CERT_FILE` / `SSL_KEY_FILE` | 未设置 | 同时设置（指向 PEM 证书与私钥）时，服务用 HTTPS 监听同一 `PORT`，否则为 HTTP。局域网自用可看 `deploy/README.md` 一键生成自签证书。 |
 
 生成私聊密钥：
 

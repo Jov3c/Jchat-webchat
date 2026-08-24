@@ -28,3 +28,6 @@ _work/
 
 # Frontend build output
 client/dist/
+
+# Deploy-generated HTTPS certs (private keys — never commit)
+deploy/certs/

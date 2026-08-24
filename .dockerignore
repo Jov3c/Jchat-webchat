@@ -1,0 +1,17 @@
+# 不进入 Docker 镜像的内容
+node_modules/
+client/node_modules/
+client/dist/
+.env
+.env.*
+!.env.example
+server/data/
+server/logs/
+public/uploads/
+deploy/certs/
+_work/
+.git
+*.log
+images/
+deploy/windows/
+deploy/linux/
