@@ -68,9 +68,10 @@ Jchat-JoyChat 使用单一 Node.js 进程，不依赖 MySQL、PostgreSQL、Redis
 | 组件 | 版本/要求 | 用途 |
 | --- | --- | --- |
 | Node.js | 24 LTS（`>=24 <25`） | HTTP、SQLite、API 与实时服务运行时 |
-| Vue 3 + Vite | `^3.5` / `^6.0` | 前端框架与构建（`client/`） |
-| Express | `^4.22.2` | 页面与 API 服务 |
-| Socket.IO | `^4.8.3` | 实时频道和私聊通信 |
+| Vue 3 + Vite | `^3.5` / `^8.0` | 前端框架与构建（`client/`） |
+| vue-router | `^5.2` | 前端路由 |
+| Express | `^5.2` | 页面与 API 服务 |
+| Socket.IO | `^4.8.3` | 实时频道和私聊通信（前端 `socket.io-client`） |
 | bcrypt | `^6.0.0` | 用户与管理员密码哈希 |
 | jsonwebtoken | `^9.0.0` | 登录会话令牌 |
 | Multer | `^2.2.0` | 图片、语音和表情包上传 |
@@ -86,7 +87,7 @@ npm run build --prefix client
 
 `bcrypt` 和 `sharp` 通常使用预编译二进制；如果目标平台没有对应构建产物，还需要 Python 3、Make 和 C/C++ 编译工具链。应用默认只监听一个 `PORT`（默认 `3000`），公网部署建议由 HTTPS 反向代理转发到该端口。
 
-当前生产依赖审计为 3 项：1 个 High、2 个 Moderate，均来自 Socket.IO 当前依赖范围内的 `ws`。项目未强制覆盖到官方范围之外，并已限制来源、消息大小和连接参数；CI 会阻断 Critical 级问题。
+生产依赖审计当前为 0 项（`npm audit --omit=dev` 与全量 `npm audit` 均为 0 漏洞）。依赖通过 `overrides` 固定到审计安全的版本（如 engine.io 6.6.9、picomatch 2.3.2），并配合消息大小、连接参数与来源限制；CI 会阻断 Critical 级问题。
 
 ### 安装与启动
 
