@@ -73,6 +73,31 @@ docker compose up -d --build
 
 ---
 
+## 停止与日常管理
+
+### Windows
+
+- 直接**关闭启动服务的命令行窗口**，服务即停止；或在窗口里按 `Ctrl+C`（看到 "Server shutting down..." 即正常退出）。
+- 停止不会丢数据：聊天记录和上传文件都在磁盘上，下次双击 `start-joychat.bat` 继续使用。
+
+### Linux（systemd）
+
+```bash
+systemctl status joychat    # 查看状态
+sudo systemctl stop joychat       # 停止
+sudo systemctl restart joychat    # 重启
+```
+
+### Docker（在 deploy/docker/ 目录下）
+
+```bash
+docker compose stop              # 停止容器（保留数据卷）
+docker compose down              # 停止并删除容器
+docker compose logs -f joychat   # 查看日志
+```
+
+---
+
 ## HTTPS 一览
 
 | 场景 | HTTPS 方式 | 浏览器提示 |
