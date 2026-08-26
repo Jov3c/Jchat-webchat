@@ -8,7 +8,7 @@ Jchat-JoyChat 是一个实时聊天应用：公共/私有频道 + 好友私聊�
 
 - 单 Node.js 进程同时提供：网页、HTTP API、Socket.IO 实时通信、SQLite 数据库
 - 前端为 Vue 3 单页应用，构建产物 `client/dist/` 由同一服务托管
-- 当前版本：**v2.3.0**；要求 **Node.js 24 LTS**（`node:sqlite`、`--env-file` 均依赖 Node ≥20/24）
+- 当前版本：**v2.4.0**；要求 **Node.js 24 LTS**（`node:sqlite`、`--env-file` 均依赖 Node ≥20/24）
 
 ## 技术栈（使用语言）
 
@@ -24,9 +24,9 @@ Jchat-JoyChat 是一个实时聊天应用：公共/私有频道 + 好友私聊�
 ├── client/              # Vue 3 前端
 │   └── src/
 │       ├── api/         # http.js（fetch 封装）、socket.js（Socket.IO 客户端）
-│       ├── components/  # Avatar、MessageBubble、StickerPicker、layout/（Composer、MessageList…）
-│       ├── stores/      # reactive stores：auth、channels、e2ee、friends、keys、presence、session、stickers、unread、userCard
-│       ├── utils/       # bilibili.js（B站链接→播放器卡片）
+│       ├── components/  # Avatar、MessageBubble、StickerPicker、MusicCard、Toast、ImageLightbox、layout/（Composer、MessageList…）
+│       ├── stores/      # reactive stores：auth、channels、e2ee、friends、keys、presence、session、stickers、unread、userCard、toast、imageViewer
+│       ├── utils/       # bilibili.js（B站→播放器）、music.js（网易云→音乐卡片/外链播放器）
 │       ├── views/       # LoginView、RegisterView、ChatView、ProfileView、AdminView
 │       └── styles/      # tokens.css、base.css
 ├── server/              # 后端模块
@@ -77,8 +77,9 @@ npm run reset-data              # 清空数据并恢复本地默认管理员 adm
 
 - **端到端加密**：私聊用 WebCrypto ECDH P-256 + AES-256-GCM，密钥由登录密码经 PBKDF2 派生后加密存服务器。因此**必须 HTTPS**（`crypto.subtle` 只在安全上下文可用）；HTTP 下自动降级为明文（不报错，但不安全）。
 - **可选 HTTPS**：`index.js` 检测 `SSL_CERT_FILE`/`SSL_KEY_FILE`（PEM 路径），同时设置则用 `https.createServer` 监听同一 `PORT`。局域网自签证书由 `deploy/windows/deploy.ps1` 生成。
-- **防存储型 XSS（关键）**：所有入库的媒体 URL（图片/语音/文件/表情包）必须过 `server/validation.js` 的 `validateMediaUrl`——只允许站内 `uploads/` 相对路径或 `http(s)://`，拒绝 `javascript:`/`data:` 等。新增「用户可控 → 前端 v-html / src」的路径时必须同样校验。B站卡片用 `BV[a-zA-Z0-9]+` 正则提取 + `encodeURIComponent`，且只渲染官方 `player.bilibili.com` iframe。
-- **其他**：JWT 会话、单会话登录、登录/注册/上传/后台登录按 IP 限流、CORS 来源校验（`isAllowedOrigin`）、上传白名单（MIME+扩展名，10MB 上限）、日志默认不记正文且递归脱敏。
+- **防存储型 XSS（关键）**：所有入库的媒体 URL（图片/视频/语音/文件/表情包）必须过 `server/validation.js` 的 `validateMediaUrl`——只允许站内 `uploads/` 相对路径或 `http(s)://`，拒绝 `javascript:`/`data:` 等。新增「用户可控 → 前端 v-html / src」的路径时必须同样校验。B站卡片用 `BV[a-zA-Z0-9]+` 正则提取 + `encodeURIComponent`，只渲染官方 `player.bilibili.com` iframe；网易云音乐卡片/外链播放器同样用 `\d+` 正则提取 ID + `encodeURIComponent`，只渲染官方 `music.163.com` iframe。
+- **其他**：JWT 会话、单会话登录、登录/注册/上传/后台登录按 IP 限流、CORS 来源校验（`isAllowedOrigin`）、上传白名单（MIME+扩展名：图片/语音 10MB、文件/视频 100MB）、日志默认不记正文且递归脱敏。
+- **媒体过期清理**：上传的图片/视频/语音/文件 7 天自动删除（`index.js` 每 6 小时跑 `listExpiredMediaMessages`/`markMessageExpired`），消息保留并标记 `media_expired` 显示"已过期"。
 - **依赖审计**：`npm audit` 应为 0 漏洞。`package.json` 的 `overrides` 段是关键锁版（engine.io 6.6.9、picomatch 2.3.2 等），升级依赖时务必同步检查，不要删掉。
 
 ## 部署方式
@@ -102,9 +103,10 @@ npm run reset-data              # 清空数据并恢复本地默认管理员 adm
 - 不要引入 TypeScript、不要在运行时引入新框架；保持纯 JS、轻依赖。
 - 数据库字段/表结构改动要同步 `server/db.js` 建表逻辑与相关测试；迁移策略请先和用户确认。
 
-## 当前状态（2026-08-24）
+## 当前状态（2026-08-26）
 
 - 里程碑 M1（前端重构）、M2（E2EE）、M3（协作功能）、M4（后端整理）**全部完成**。
-- 额外功能：未读红点、会话置顶、头像上传、频道管理、表情选择器、自定义表情包、B站视频卡片等。
-- 质量：后端 50 测试 + 前端 35 测试全绿；CI 全绿；`npm audit` 0 漏洞。
-- 最近工作：安全修复（engine.io 6.6.9）、部署脚本与 HTTPS 支持（见 `deploy/`）、AGENT.md。
+- **v2.4.0 新增**：图片点击放大、视频内嵌播放（≤100MB）、通用文件发送（7 天过期）、网易云音乐卡片 + 外链可播放播放器、表情包右键收藏、Toast 提示、E2EE 私钥 sessionStorage 缓存（刷新不丢密钥）、手机端布局优化。
+- **文件传输走服务器中转**（公共/私聊一致，7 天过期），已移除点对点（WebRTC）传输。
+- 质量：后端 53 测试 + 前端 52 测试全绿；CI 全绿；`npm audit` 0 漏洞。
+- 最近工作：v2.4.0 媒体/文件/音乐卡片功能、部署脚本与 HTTPS 支持（见 `deploy/`）。
