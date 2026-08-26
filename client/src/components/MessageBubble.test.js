@@ -90,6 +90,16 @@ describe('MessageBubble music card', () => {
     });
     expect(wrapper.find('.music-card').exists()).toBe(false);
   });
+
+  it('renders an embedded playable player for an outchain link', () => {
+    const wrapper = mount(MessageBubble, {
+      props: { message: { id: 13, content: 'https://music.163.com/#/outchain/2/3951888/', user_id: 99 }, mine: false }
+    });
+    const iframe = wrapper.find('.music-player iframe');
+    expect(iframe.exists()).toBe(true);
+    expect(iframe.attributes('src')).toContain('id=3951888');
+    expect(wrapper.find('.music-card').exists()).toBe(false);
+  });
 });
 
 describe('MessageBubble video & expiry', () => {

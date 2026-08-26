@@ -37,7 +37,8 @@
         </template>
       </div>
       <div v-if="biliHtml" class="bili-player" v-html="biliHtml"></div>
-      <MusicCard v-if="musicId" :id="musicId" />
+      <div v-if="outchainPlayer" class="music-player" v-html="outchainPlayer"></div>
+      <MusicCard v-else-if="musicId" :id="musicId" />
       <div v-if="isChannelMsg" class="react">
         <span v-for="r in reactions" :key="r.emoji" class="react-pill" :class="{ on: reacted(r) }" @click="toggleReaction(r.emoji)">
           {{ r.emoji }} <span class="count">{{ r.count }}</span>
@@ -60,7 +61,7 @@ import { addSticker, useStickers } from '../stores/stickers.js';
 import { showToast } from '../stores/toast.js';
 import { openImage } from '../stores/imageViewer.js';
 import { extractBilibiliBvids, bilibiliPlayerHtml } from '../utils/bilibili.js';
-import { extractMusicSongId } from '../utils/music.js';
+import { extractMusicSongId, extractOutchainSongId, outchainPlayerHtml } from '../utils/music.js';
 import MusicCard from './MusicCard.vue';
 import Avatar from './Avatar.vue';
 
@@ -117,6 +118,12 @@ const biliHtml = computed(() => {
 
 // 消息正文中的网易云音乐链接：取第一个歌曲 ID 渲染音乐卡片
 const musicId = computed(() => extractMusicSongId(props.message.content || ''));
+
+// 外链格式链接：渲染真正可播放的内嵌播放器（优先于卡片）
+const outchainPlayer = computed(() => {
+  const id = extractOutchainSongId(props.message.content || '');
+  return id ? outchainPlayerHtml(id) : '';
+});
 
 function goProfile(event) {
   if (senderId.value == null) return;
