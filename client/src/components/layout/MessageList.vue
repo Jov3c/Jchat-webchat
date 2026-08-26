@@ -132,15 +132,19 @@ function applyRecall(messageId) {
 
 async function decryptDmContent(m) {
   if (typeof m.content !== 'string' || !m.content.startsWith('e2ee:')) return m;
-  if (props.peerId == null || !useKeys().ready) return m;
+  if (props.peerId == null || !useKeys().ready) {
+    return { ...m, content: '[加密消息：密钥未就绪，请重新登录恢复]' };
+  }
   const peerPub = getFriendPublicKey(props.peerId);
-  if (!peerPub) return m;
+  if (!peerPub) {
+    return { ...m, content: '[加密消息：无法获取对方密钥]' };
+  }
   try {
     const key = await getOrDeriveMessageKey(props.peerId, peerPub);
     const plain = await decryptMessage(m.content.slice(5), key);
     if (plain != null) return { ...m, content: plain };
-  } catch { /* 解密失败则保持原样 */ }
-  return m;
+  } catch { /* 解密失败走兜底提示 */ }
+  return { ...m, content: '[加密消息：解密失败]' };
 }
 
 async function load() {
@@ -186,6 +190,12 @@ function onMessageReaction({ messageId, reactions }) {
   const i = messages.value.findIndex(x => x.id === messageId);
   if (i >= 0) messages.value[i] = { ...messages.value[i], reactions };
 }
+function onMediaExpired(messageId) {
+  const i = messages.value.findIndex(x => x.id === messageId);
+  if (i >= 0) messages.value[i] = { ...messages.value[i], image: null, video: null, voice: null, file: null, media_expired: 1 };
+}
+function onMessageMediaExpired({ messageId }) { onMediaExpired(messageId); }
+function onDmMessageMediaExpired({ messageId }) { onMediaExpired(messageId); }
 function onDocClick() { if (menu.value.open) closeMenu(); }
 
 onMounted(() => {
@@ -195,6 +205,8 @@ onMounted(() => {
   socket.on('messageRecalled', onMessageRecalled);
   socket.on('dmMessageRecalled', onDmMessageRecalled);
   socket.on('messageReaction', onMessageReaction);
+  socket.on('messageMediaExpired', onMessageMediaExpired);
+  socket.on('dmMessageMediaExpired', onDmMessageMediaExpired);
 });
 
 onBeforeUnmount(() => {
@@ -204,6 +216,8 @@ onBeforeUnmount(() => {
   socket.off('messageRecalled', onMessageRecalled);
   socket.off('dmMessageRecalled', onDmMessageRecalled);
   socket.off('messageReaction', onMessageReaction);
+  socket.off('messageMediaExpired', onMessageMediaExpired);
+  socket.off('dmMessageMediaExpired', onDmMessageMediaExpired);
 });
 </script>
 

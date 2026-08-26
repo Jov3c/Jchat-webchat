@@ -10,18 +10,25 @@
       </div>
       <div v-if="message.reply_info" class="reply-quote">
         <span class="reply-who">{{ message.reply_info.nickname || message.reply_info.username || '用户' }}</span>
-        <span class="reply-content">{{ message.reply_info.content || (message.reply_info.image ? '[图片]' : '[消息已撤回]') }}</span>
+        <span class="reply-content">{{ message.reply_info.content || (message.reply_info.image ? '[图片]' : (message.reply_info.video ? '[视频]' : '[消息已撤回]')) }}</span>
       </div>
       <div v-if="message.image" class="img-card">
-        <img :src="message.image" alt="图片" />
-        <button class="sticker-collect" aria-label="收藏为表情包" title="收藏为表情包" @click.stop="collectSticker">＋</button>
+        <img :src="message.image" alt="图片" title="点击放大 · 右键收藏为表情包" @click="openImage(message.image)" @contextmenu.prevent="collectSticker" />
       </div>
       <div v-if="message.voice" class="media"><audio :src="message.voice" controls /></div>
+      <div v-if="message.video" class="video-card">
+        <video :src="message.video" controls preload="metadata" />
+        <span v-if="message.file_name" class="video-name">{{ message.file_name }}</span>
+      </div>
       <div v-if="message.file" class="file-card">
-        <a :href="message.file" target="_blank" download>
+        <a :href="message.file" target="_blank" :download="message.file_name || ''">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
           <span class="file-name">{{ message.file_name || '文件' }}</span>
         </a>
+      </div>
+      <div v-if="message.media_expired && !message.is_recalled" class="media-expired">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        <span>{{ message.file_name ? message.file_name + '（已过期）' : '文件已过期' }}</span>
       </div>
       <div v-if="message.content" class="text">
         <template v-for="(part, i) in contentParts" :key="i">
@@ -30,6 +37,7 @@
         </template>
       </div>
       <div v-if="biliHtml" class="bili-player" v-html="biliHtml"></div>
+      <MusicCard v-if="musicId" :id="musicId" />
       <div v-if="isChannelMsg" class="react">
         <span v-for="r in reactions" :key="r.emoji" class="react-pill" :class="{ on: reacted(r) }" @click="toggleReaction(r.emoji)">
           {{ r.emoji }} <span class="count">{{ r.count }}</span>
@@ -48,8 +56,12 @@ import { computed, ref } from 'vue';
 import { http } from '../api/http.js';
 import { getUser } from '../stores/auth.js';
 import { openUserCard } from '../stores/userCard.js';
-import { addSticker } from '../stores/stickers.js';
+import { addSticker, useStickers } from '../stores/stickers.js';
+import { showToast } from '../stores/toast.js';
+import { openImage } from '../stores/imageViewer.js';
 import { extractBilibiliBvids, bilibiliPlayerHtml } from '../utils/bilibili.js';
+import { extractMusicSongId } from '../utils/music.js';
+import MusicCard from './MusicCard.vue';
 import Avatar from './Avatar.vue';
 
 const props = defineProps({ message: Object, mine: Boolean });
@@ -73,13 +85,21 @@ async function toggleReaction(emoji) {
   } catch { /* 忽略 */ }
 }
 
-// 收藏图片消息为自定义表情包（仅自己可见）
+// 右键收藏图片消息为自定义表情包（仅自己可见）
 async function collectSticker() {
   if (!props.message.image) return;
+  const url = props.message.image;
+  if (useStickers().list.some(s => s.url === url)) {
+    showToast('这个表情包已经添加过了', 'warn');
+    return;
+  }
   try {
-    const data = await http.post('/api/stickers', { url: props.message.image });
+    const data = await http.post('/api/stickers', { url });
     if (data.sticker) addSticker(data.sticker);
-  } catch { /* 忽略 */ }
+    showToast('表情包添加成功', 'success');
+  } catch {
+    showToast('添加表情包失败', 'warn');
+  }
 }
 
 // 该消息是否 @ 提及了当前用户
@@ -94,6 +114,9 @@ const biliHtml = computed(() => {
   const bvids = extractBilibiliBvids(props.message.content || '');
   return bvids.length ? bilibiliPlayerHtml(bvids[0]) : '';
 });
+
+// 消息正文中的网易云音乐链接：取第一个歌曲 ID 渲染音乐卡片
+const musicId = computed(() => extractMusicSongId(props.message.content || ''));
 
 function goProfile(event) {
   if (senderId.value == null) return;
@@ -174,6 +197,14 @@ const contentParts = computed(() => {
 .sticker-collect:hover { background: rgba(0,0,0,.7); }
 .media { margin-top: 8px; }
 .media audio { max-width: 300px; }
+.video-card { margin-top: 8px; max-width: 360px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.video-card video { width: 100%; display: block; background: #000; }
+.video-name { display: block; padding: 5px 10px; font-size: 12px; color: var(--muted); background: var(--rail); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-expired {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 6px;
+  padding: 6px 11px; border: 1px dashed var(--border); border-radius: 9px;
+  font-size: 12px; color: var(--muted); background: var(--rail);
+}
 .file-card { margin-top: 8px; }
 .file-card a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-size: 13px; text-decoration: none; background: var(--rail); }
 .file-card a:hover { background: var(--hover); }

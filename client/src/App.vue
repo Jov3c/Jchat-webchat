@@ -6,11 +6,15 @@
   </router-view>
   <UserCard />
   <SessionReplacedModal />
+  <Toast />
+  <ImageLightbox />
 </template>
 
 <script setup>
 import UserCard from './components/UserCard.vue';
 import SessionReplacedModal from './components/SessionReplacedModal.vue';
+import Toast from './components/Toast.vue';
+import ImageLightbox from './components/ImageLightbox.vue';
 </script>
 
 <style>

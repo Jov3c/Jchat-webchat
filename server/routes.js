@@ -9,6 +9,18 @@ const ROOT = path.join(__dirname, '..');
 const { createUserSessionToken, verifyCurrentUserToken } = require('./user-session');
 const { VALID_PRESENCE_STATUSES } = require('./presence');
 
+// multer/busboy 默认按 latin1 解码 multipart 文件名，中文会变乱码；这里还原为 UTF-8
+function decodeOriginalName(name) {
+    if (typeof name !== 'string' || !name) return '';
+    try {
+        const restored = Buffer.from(name, 'latin1').toString('utf8');
+        // 若还原后含替换字符，说明本来就是 ASCII，直接用原值
+        return restored.includes('�') ? name : restored;
+    } catch {
+        return name;
+    }
+}
+
 module.exports = function registerRoutes(app, ctx) {
     const {
         presence, sharp, io,
@@ -16,8 +28,8 @@ module.exports = function registerRoutes(app, ctx) {
         JWT_SECRET, JWT_EXPIRES_IN, REGISTRATION_ENABLED, VERSION, DEFAULT_AVATAR,
         ADMIN_CREDENTIALS,
         loginRateLimiter, registrationRateLimiter, adminLoginRateLimiter, uploadRateLimiter,
-        secureSingleUpload, deleteRecallAttachment, cleanupUploadedFiles, removeUploadedFile,
-        IMAGE_UPLOAD_TYPES, VOICE_UPLOAD_TYPES,
+        secureSingleUpload, secureSingleUploadLarge, deleteRecallAttachment, cleanupUploadedFiles, removeUploadedFile,
+        IMAGE_UPLOAD_TYPES, VOICE_UPLOAD_TYPES, VIDEO_UPLOAD_TYPES, FILE_UPLOAD_TYPES,
         isValidChannel, isPrivateChannel, canAccessChannel, getAvailableChannels,
         getChannelMemberSummaries, getPublicChannelMembers, broadcastChannelPresence,
         getChannelOnlineCount, broadcastUserPresence, broadcastAllChannelPresence,
@@ -761,10 +773,10 @@ app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, upload
     }
 });
 
-app.post('/api/upload/file', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('file'), async (req, res) => {
+app.post('/api/upload/file', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUploadLarge('file'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'File is required' });
     try {
-        const originalName = req.file.originalname || 'file';
+        const originalName = decodeOriginalName(req.file.originalname) || 'file';
         const safeName = 'file-' + req.file.filename;
         const destPath = path.join(ROOT, 'public', 'uploads', safeName);
         fs.renameSync(req.file.path, destPath);
@@ -773,6 +785,57 @@ app.post('/api/upload/file', authenticateUser, requireAuthenticatedUser, uploadR
         console.error('File upload failed:', error);
         cleanupUploadedFiles(req);
         res.status(500).json({ error: 'File upload error' });
+    }
+});
+
+app.post('/api/upload/video', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUploadLarge('video'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Video is required' });
+    try {
+        const originalName = decodeOriginalName(req.file.originalname) || 'video';
+        const safeName = 'video-' + req.file.filename;
+        const destPath = path.join(ROOT, 'public', 'uploads', safeName);
+        fs.renameSync(req.file.path, destPath);
+        res.json({ success: true, video: 'uploads/' + safeName, video_name: originalName });
+    } catch (error) {
+        console.error('Video upload failed:', error);
+        cleanupUploadedFiles(req);
+        res.status(500).json({ error: 'Video upload error' });
+    }
+});
+
+// 音乐卡片：按网易云歌曲 ID 抓取歌名/封面/时长（带内存缓存，避免重复请求外部接口）
+const musicCache = new Map();
+app.get('/api/music', async (req, res) => {
+    const id = String(req.query.id || '').replace(/\D/g, '');
+    if (!id) return res.status(400).json({ error: 'id required' });
+    if (musicCache.has(id)) return res.json(musicCache.get(id));
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        const remote = await fetch(`https://music.163.com/api/song/detail?ids=%5B${id}%5D`, {
+            headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://music.163.com/' },
+            signal: controller.signal
+        });
+        clearTimeout(timer);
+        const data = await remote.json();
+        const song = (data.songs || [null])[0];
+        let info;
+        if (!song) {
+            info = { ok: false, error: 'not found' };
+        } else {
+            info = {
+                ok: true, id,
+                name: song.name,
+                artist: (song.artists || []).map(a => a.name).join('/'),
+                album: song.album && song.album.name,
+                pic: song.album && song.album.picUrl,
+                sec: Math.floor((song.duration || 0) / 1000)
+            };
+        }
+        musicCache.set(id, info);
+        res.json(info);
+    } catch (err) {
+        res.status(502).json({ ok: false, error: 'fetch failed' });
     }
 });
 

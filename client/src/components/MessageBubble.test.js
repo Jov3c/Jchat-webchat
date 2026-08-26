@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import MessageBubble from './MessageBubble.vue';
 import { useStickers, resetStickers } from '../stores/stickers.js';
+import { useImageViewer } from '../stores/imageViewer.js';
 
 // stub http 模块
-vi.mock('../api/http.js', () => ({ http: { post: vi.fn() } }));
+vi.mock('../api/http.js', () => ({ http: { post: vi.fn(), get: vi.fn() } }));
 import { http } from '../api/http.js';
 
 // stub userCard 依赖
@@ -25,23 +26,33 @@ describe('MessageBubble sticker collect', () => {
     });
   }
 
-  it('shows a collect button on image messages', () => {
+  it('right-click on an image collects it as a sticker', async () => {
     const wrapper = mountImageMessage();
-    expect(wrapper.find('.sticker-collect').exists()).toBe(true);
+    await wrapper.find('.img-card img').trigger('contextmenu');
+    expect(http.post).toHaveBeenCalledWith('/api/stickers', { url: 'uploads/chat-x.png' });
+    expect(useStickers().list.map(s => s.url)).toContain('uploads/chat-x.png');
   });
 
-  it('does not show a collect button on text-only messages', () => {
+  it('does not collect from text-only messages (no image to right-click)', () => {
     const wrapper = mount(MessageBubble, {
       props: { message: { id: 2, content: 'hi', user_id: 99 }, mine: false }
     });
-    expect(wrapper.find('.sticker-collect').exists()).toBe(false);
+    expect(wrapper.find('.img-card').exists()).toBe(false);
   });
 
-  it('posts the image url to /api/stickers and adds it to the store', async () => {
+  it('shows a warning and does not post when the sticker already exists', async () => {
     const wrapper = mountImageMessage();
-    await wrapper.find('.sticker-collect').trigger('click');
-    expect(http.post).toHaveBeenCalledWith('/api/stickers', { url: 'uploads/chat-x.png' });
-    expect(useStickers().list.map(s => s.url)).toContain('uploads/chat-x.png');
+    await wrapper.find('.img-card img').trigger('contextmenu');
+    expect(http.post).toHaveBeenCalledTimes(1);
+    // 第二次右键同一张图：已添加过 → 不再发请求
+    await wrapper.find('.img-card img').trigger('contextmenu');
+    expect(http.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('clicking an image opens the lightbox', async () => {
+    const wrapper = mountImageMessage();
+    await wrapper.find('.img-card img').trigger('click');
+    expect(useImageViewer().value).toBe('uploads/chat-x.png');
   });
 });
 
@@ -62,5 +73,61 @@ describe('MessageBubble bilibili embed', () => {
   it('renders nothing when the message has no bilibili link', () => {
     const wrapper = mountBilibiliMessage('just a normal message');
     expect(wrapper.find('.bili-player').exists()).toBe(false);
+  });
+});
+
+describe('MessageBubble music card', () => {
+  it('renders a music card when the message contains a NetEase link', () => {
+    const wrapper = mount(MessageBubble, {
+      props: { message: { id: 11, content: '推歌 https://music.163.com/song?id=441491828', user_id: 99 }, mine: false }
+    });
+    expect(wrapper.find('.music-card').exists()).toBe(true);
+  });
+
+  it('does not render a music card without a NetEase link', () => {
+    const wrapper = mount(MessageBubble, {
+      props: { message: { id: 12, content: '普通消息', user_id: 99 }, mine: false }
+    });
+    expect(wrapper.find('.music-card').exists()).toBe(false);
+  });
+});
+
+describe('MessageBubble video & expiry', () => {
+  function mountMessage(message) {
+    return mount(MessageBubble, {
+      props: { message: { user_id: 99, content: '', ...message }, mine: false }
+    });
+  }
+
+  it('renders an inline video player for video messages', () => {
+    const wrapper = mountMessage({ id: 6, video: 'uploads/vid.mp4', file_name: 'a.mp4' });
+    const video = wrapper.find('.video-card video');
+    expect(video.exists()).toBe(true);
+    expect(video.attributes('src')).toBe('uploads/vid.mp4');
+  });
+
+  it('does not render a video player for image-only messages', () => {
+    const wrapper = mountMessage({ id: 9, image: 'uploads/img.png' });
+    expect(wrapper.find('.video-card').exists()).toBe(false);
+  });
+
+  it('shows the expired file name when media_expired with file_name', () => {
+    const wrapper = mountMessage({ id: 7, media_expired: 1, file_name: 'report.pdf' });
+    expect(wrapper.find('.media-expired').exists()).toBe(true);
+    expect(wrapper.find('.media-expired').text()).toContain('report.pdf');
+    expect(wrapper.find('.media-expired').text()).toContain('已过期');
+  });
+
+  it('shows a generic expired placeholder when media_expired without file_name', () => {
+    const wrapper = mountMessage({ id: 8, media_expired: 1 });
+    expect(wrapper.find('.media-expired').exists()).toBe(true);
+    expect(wrapper.find('.media-expired').text()).toContain('已过期');
+  });
+
+  it('downloads files with the original name, not the server random name', () => {
+    const wrapper = mountMessage({ id: 10, file: 'uploads/file-12345-report.pdf', file_name: '项目报告.pdf' });
+    const link = wrapper.find('.file-card a');
+    expect(link.attributes('href')).toBe('uploads/file-12345-report.pdf');
+    expect(link.attributes('download')).toBe('项目报告.pdf');
   });
 });

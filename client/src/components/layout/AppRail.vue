@@ -181,7 +181,11 @@ const STATUS_OPTIONS = [
 const STATUS_LABELS = { online: '在线', away: '离开', busy: '请勿打扰', invisible: '隐身', offline: '离线' };
 function statusLabel(s) { return STATUS_LABELS[s] || '在线'; }
 
-function collapse() { emit('update:collapsed', true); }
+function collapse() {
+  // 手机端是抽屉，收起按钮应直接关闭抽屉，避免切到 68px 窄栏导致布局乱
+  if (window.innerWidth <= 860) { open.value = false; return; }
+  emit('update:collapsed', true);
+}
 function expand() { emit('update:collapsed', false); open.value = false; }
 function onBrandClick() {
   if (props.collapsed) { expand(); }

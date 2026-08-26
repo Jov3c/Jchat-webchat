@@ -43,9 +43,11 @@ sqlite.exec(`
     channel TEXT NOT NULL,
     content TEXT NOT NULL DEFAULT '',
     image TEXT,
+    video TEXT,
     voice TEXT,
     file TEXT,
     file_name TEXT,
+    media_expired INTEGER NOT NULL DEFAULT 0,
     reply_to INTEGER,
     is_blocked INTEGER NOT NULL DEFAULT 0,
     blocked_at TEXT,
@@ -108,9 +110,11 @@ sqlite.exec(`
     to_user_id INTEGER NOT NULL,
     content TEXT NOT NULL DEFAULT '',
     image TEXT,
+    video TEXT,
     voice TEXT,
     file TEXT,
     file_name TEXT,
+    media_expired INTEGER NOT NULL DEFAULT 0,
     reply_to INTEGER,
     is_recalled INTEGER NOT NULL DEFAULT 0,
     recalled_at TEXT,
@@ -197,6 +201,12 @@ if (!messageColumns.some(column => column.name === 'file')) {
 if (!messageColumns.some(column => column.name === 'file_name')) {
     sqlite.exec('ALTER TABLE messages ADD COLUMN file_name TEXT');
 }
+if (!messageColumns.some(column => column.name === 'video')) {
+    sqlite.exec('ALTER TABLE messages ADD COLUMN video TEXT');
+}
+if (!messageColumns.some(column => column.name === 'media_expired')) {
+    sqlite.exec('ALTER TABLE messages ADD COLUMN media_expired INTEGER NOT NULL DEFAULT 0');
+}
 
 const dmColumns = sqlite.prepare('PRAGMA table_info(dm_messages)').all();
 if (!dmColumns.some(column => column.name === 'file')) {
@@ -204,6 +214,12 @@ if (!dmColumns.some(column => column.name === 'file')) {
 }
 if (!dmColumns.some(column => column.name === 'file_name')) {
     sqlite.exec('ALTER TABLE dm_messages ADD COLUMN file_name TEXT');
+}
+if (!dmColumns.some(column => column.name === 'video')) {
+    sqlite.exec('ALTER TABLE dm_messages ADD COLUMN video TEXT');
+}
+if (!dmColumns.some(column => column.name === 'media_expired')) {
+    sqlite.exec('ALTER TABLE dm_messages ADD COLUMN media_expired INTEGER NOT NULL DEFAULT 0');
 }
 
 const users = [];
@@ -608,10 +624,10 @@ function getMessageById(id) { return messages.find(message => message.id === int
 function insertMessage(messageData) {
     const blocked = messageData.is_blocked ? 1 : 0;
     const result = sqlite.prepare(`INSERT INTO messages
-      (user_id, channel, content, image, voice, file, file_name, reply_to, is_blocked, blocked_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      (user_id, channel, content, image, video, voice, file, file_name, reply_to, is_blocked, blocked_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         int(messageData.user_id), messageData.channel, messageData.content || '', messageData.image || null,
-        messageData.voice || null, messageData.file || null, messageData.file_name || null,
+        messageData.video || null, messageData.voice || null, messageData.file || null, messageData.file_name || null,
         messageData.reply_to || null, blocked, blocked ? nowIso() : null, nowIso()
     );
     refreshCaches();
@@ -621,10 +637,10 @@ function insertMessage(messageData) {
 function updateMessage(id, updates) {
     const message = getMessageById(id);
     if (!message) return null;
-    const allowed = ['user_id', 'channel', 'content', 'image', 'voice', 'reply_to', 'is_blocked', 'blocked_at', 'is_recalled', 'recalled_at'];
+    const allowed = ['user_id', 'channel', 'content', 'image', 'video', 'voice', 'reply_to', 'is_blocked', 'blocked_at', 'is_recalled', 'recalled_at'];
     const entries = Object.entries(updates).filter(([key]) => allowed.includes(key));
     if (!entries.length) return message;
-    if (updates.is_recalled) { updates.image = null; updates.voice = null; }
+    if (updates.is_recalled) { updates.image = null; updates.video = null; updates.voice = null; }
     const values = entries.map(([, value]) => value === true ? 1 : value === false ? 0 : value);
     sqlite.prepare(`UPDATE messages SET ${entries.map(([key]) => `${key} = ?`).join(', ')} WHERE id = ?`).run(...values, int(id));
     refreshCaches();
@@ -760,15 +776,15 @@ function getDmMessagesBetween(userIdA, userIdB, viewerUserId) {
     return sqlite.prepare(`SELECT * FROM dm_messages WHERE (from_user_id = ? AND to_user_id = ?) OR (from_user_id = ? AND to_user_id = ?) ORDER BY id`).all(a, b, b, a).map(dmFromRow).filter(message => !message.deleted_for.includes(viewer));
 }
 function getDmMessageById(id) { return dmFromRow(sqlite.prepare('SELECT * FROM dm_messages WHERE id = ?').get(int(id))); }
-function insertDmMessage({ from_user_id, to_user_id, content, image, voice, file, file_name, reply_to }) {
+function insertDmMessage({ from_user_id, to_user_id, content, image, video, voice, file, file_name, reply_to }) {
     const fromId = int(from_user_id); const toId = int(to_user_id); if (!normalizePair(fromId, toId)) return null;
     const raw = content || '';
     const stored = (typeof raw === 'string' && raw.startsWith('e2ee:')) ? raw : dmCrypto.encrypt(raw);
-    const result = sqlite.prepare(`INSERT INTO dm_messages(from_user_id, to_user_id, content, image, voice, file, file_name, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(fromId, toId, stored, image || null, voice || null, file || null, file_name || null, reply_to != null ? int(reply_to) : null, nowIso());
+    const result = sqlite.prepare(`INSERT INTO dm_messages(from_user_id, to_user_id, content, image, video, voice, file, file_name, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(fromId, toId, stored, image || null, video || null, voice || null, file || null, file_name || null, reply_to != null ? int(reply_to) : null, nowIso());
     return getDmMessageById(Number(result.lastInsertRowid));
 }
 function updateDmMessage(id, updates) {
-    const allowed = ['content', 'image', 'voice', 'reply_to', 'is_recalled', 'recalled_at', 'deleted_for'];
+    const allowed = ['content', 'image', 'video', 'voice', 'reply_to', 'is_recalled', 'recalled_at', 'deleted_for'];
     const entries = Object.entries(updates).filter(([key]) => allowed.includes(key)); if (!entries.length) return getDmMessageById(id);
     const values = entries.map(([key, value]) => key === 'content' ? dmCrypto.encrypt(value || '') : key === 'is_recalled' ? (value ? 1 : 0) : key === 'deleted_for' ? JSON.stringify(value || []) : value);
     sqlite.prepare(`UPDATE dm_messages SET ${entries.map(([key]) => `${key} = ?`).join(', ')} WHERE id = ?`).run(...values, int(id));
@@ -806,6 +822,24 @@ function resetAllMessages() {
 refreshCaches();
 importLegacyUsersFromFile();
 
+// —— 媒体过期清理（上传文件 7 天有效）——
+function listExpiredMediaMessages(cutoffIso) {
+    const channelRows = sqlite.prepare(`SELECT id, channel, image, video, voice, file, created_at FROM messages WHERE created_at < ? AND media_expired = 0 AND (image IS NOT NULL OR video IS NOT NULL OR voice IS NOT NULL OR file IS NOT NULL)`).all(cutoffIso).map(asObject);
+    const dmRows = sqlite.prepare(`SELECT id, from_user_id, to_user_id, image, video, voice, file, created_at FROM dm_messages WHERE created_at < ? AND media_expired = 0 AND (image IS NOT NULL OR video IS NOT NULL OR voice IS NOT NULL OR file IS NOT NULL)`).all(cutoffIso).map(asObject);
+    return { messages: channelRows, dmMessages: dmRows };
+}
+
+function markMessageExpired(id) {
+    const result = sqlite.prepare(`UPDATE messages SET image = NULL, video = NULL, voice = NULL, file = NULL, media_expired = 1 WHERE id = ?`).run(int(id));
+    if (result.changes) refreshCaches();
+    return result.changes > 0;
+}
+
+function markDmMessageExpired(id) {
+    const result = sqlite.prepare(`UPDATE dm_messages SET image = NULL, video = NULL, voice = NULL, file = NULL, media_expired = 1 WHERE id = ?`).run(int(id));
+    return result.changes > 0;
+}
+
 module.exports = {
     users, messages, channels, friends, friendRequests,
     getUsers, getUserById, getUserByUsername, getUserByEmail, getUserByNickname, getUserByIdentifier,
@@ -823,5 +857,6 @@ module.exports = {
     createChannelInvite, getPendingChannelInvites, respondChannelInvite,
     isPinned, setPin, getLastDmMessageAt, getLastChannelMessageAt,
     markRead, getUnreadCount, getReactions, toggleReaction,
-    getStickers, getStickerById, addSticker, deleteSticker
+    getStickers, getStickerById, addSticker, deleteSticker,
+    listExpiredMediaMessages, markMessageExpired, markDmMessageExpired
 };

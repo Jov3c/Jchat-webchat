@@ -303,10 +303,40 @@ const IMAGE_UPLOAD_TYPES = new Map([
 const VOICE_UPLOAD_TYPES = new Map([
     ['.webm', ['audio/webm']],
     ['.ogg', ['audio/ogg']],
-    ['.mp3', ['audio/mpeg']],
-    ['.wav', ['audio/wav', 'audio/x-wav']],
-    ['.m4a', ['audio/mp4']],
+    ['.mp3', ['audio/mpeg', 'audio/mp3']],
+    ['.wav', ['audio/wav', 'audio/x-wav', 'audio/x-pn-wav']],
+    ['.m4a', ['audio/mp4', 'audio/x-m4a', 'audio/m4a', 'audio/aac']],
     ['.aac', ['audio/aac']]
+]);
+// 视频预览：只允许浏览器可直接播放的格式（≤100MB）
+const VIDEO_UPLOAD_TYPES = new Map([
+    ['.mp4', ['video/mp4']],
+    ['.webm', ['video/webm']],
+    ['.mov', ['video/quicktime']]
+]);
+// 通用文件：常见安全类型白名单，排除可执行/脚本类（.html/.exe/.js/.bat/.svg 等）
+const FILE_UPLOAD_TYPES = new Map([
+    ['.pdf', ['application/pdf']],
+    ['.doc', ['application/msword']],
+    ['.docx', ['application/vnd.openxmlformats-officedocument.wordprocessingml.document']],
+    ['.xls', ['application/vnd.ms-excel']],
+    ['.xlsx', ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']],
+    ['.ppt', ['application/vnd.ms-powerpoint']],
+    ['.pptx', ['application/vnd.openxmlformats-officedocument.presentationml.presentation']],
+    ['.txt', ['text/plain']],
+    ['.md', ['text/markdown', 'text/plain']],
+    ['.csv', ['text/csv']],
+    ['.zip', ['application/zip']],
+    ['.rar', ['application/vnd.rar', 'application/x-rar-compressed']],
+    ['.7z', ['application/x-7z-compressed']],
+    ['.tar', ['application/x-tar']],
+    ['.gz', ['application/gzip']],
+    ['.mp3', ['audio/mpeg', 'audio/mp3']],
+    ['.wav', ['audio/wav', 'audio/x-wav', 'audio/x-pn-wav']],
+    ['.m4a', ['audio/mp4', 'audio/x-m4a', 'audio/m4a', 'audio/aac']],
+    ['.ogg', ['audio/ogg']],
+    ['.mkv', ['video/x-matroska']],
+    ['.avi', ['video/x-msvideo']]
 ]);
 
 function removeUploadedFile(file) {
@@ -324,45 +354,52 @@ function cleanupUploadedFiles(req) {
     else if (req.files && typeof req.files === 'object') Object.values(req.files).flat().forEach(removeUploadedFile);
 }
 
-const upload = multer({
-    storage,
-    limits: {
-        files: 1,
-        fileSize: 10 * 1024 * 1024,
-        fields: 10,
-        parts: 11,
-        fieldNameSize: 100,
-        fieldSize: 64 * 1024
-    },
-    fileFilter(req, file, cb) {
-        const allowedTypes = file.fieldname === 'voice' ? VOICE_UPLOAD_TYPES : IMAGE_UPLOAD_TYPES;
-        const extension = path.extname(file.originalname).toLowerCase();
-        const permittedMimeTypes = allowedTypes.get(extension);
-        const mimeType = String(file.mimetype || '').toLowerCase().split(';', 1)[0].trim();
-        if (!permittedMimeTypes || !permittedMimeTypes.includes(mimeType)) {
-            const error = new Error('Unsupported file type');
-            error.code = 'INVALID_FILE_TYPE';
-            return cb(error);
-        }
-        cb(null, true);
-    }
-});
+const UPLOAD_LIMITS = {
+    files: 1,
+    fileSize: 10 * 1024 * 1024,
+    fields: 10,
+    parts: 11,
+    fieldNameSize: 100,
+    fieldSize: 64 * 1024
+};
 
-function secureSingleUpload(fieldName) {
-    const single = upload.single(fieldName);
-    return (req, res, next) => single(req, res, error => {
-        if (!error) return next();
-        cleanupUploadedFiles(req);
-        if (error.code === 'LIMIT_FILE_SIZE') {
-            return res.status(413).json({ error: 'File size exceeds limit (10MB)' });
-        }
-        if (error instanceof multer.MulterError || error.code === 'INVALID_FILE_TYPE') {
-            return res.status(400).json({ error: error.code === 'INVALID_FILE_TYPE' ? 'Unsupported file type' : 'Invalid upload payload' });
-        }
-        console.error('Upload rejected:', error);
-        return res.status(400).json({ error: 'Upload failed' });
-    });
+function uploadFileFilter(req, file, cb) {
+    const typeMaps = { voice: VOICE_UPLOAD_TYPES, video: VIDEO_UPLOAD_TYPES, file: FILE_UPLOAD_TYPES, avatar: IMAGE_UPLOAD_TYPES, image: IMAGE_UPLOAD_TYPES };
+    const allowedTypes = typeMaps[file.fieldname] || IMAGE_UPLOAD_TYPES;
+    const extension = path.extname(file.originalname).toLowerCase();
+    const permittedMimeTypes = allowedTypes.get(extension);
+    const mimeType = String(file.mimetype || '').toLowerCase().split(';', 1)[0].trim();
+    if (!permittedMimeTypes || !permittedMimeTypes.includes(mimeType)) {
+        const error = new Error('Unsupported file type');
+        error.code = 'INVALID_FILE_TYPE';
+        return cb(error);
+    }
+    cb(null, true);
 }
+
+const upload = multer({ storage, limits: UPLOAD_LIMITS, fileFilter: uploadFileFilter });
+// 文件/视频通道允许更大的文件（100MB）
+const uploadLarge = multer({ storage, limits: { ...UPLOAD_LIMITS, fileSize: 100 * 1024 * 1024 }, fileFilter: uploadFileFilter });
+
+function makeSecureSingleUpload(uploadInstance, sizeLabel) {
+    return function secureUpload(fieldName) {
+        const single = uploadInstance.single(fieldName);
+        return (req, res, next) => single(req, res, error => {
+            if (!error) return next();
+            cleanupUploadedFiles(req);
+            if (error.code === 'LIMIT_FILE_SIZE') {
+                return res.status(413).json({ error: `File size exceeds limit (${sizeLabel})` });
+            }
+            if (error instanceof multer.MulterError || error.code === 'INVALID_FILE_TYPE') {
+                return res.status(400).json({ error: error.code === 'INVALID_FILE_TYPE' ? 'Unsupported file type' : 'Invalid upload payload' });
+            }
+            console.error('Upload rejected:', error);
+            return res.status(400).json({ error: 'Upload failed' });
+        });
+    };
+}
+const secureSingleUpload = makeSecureSingleUpload(upload, '10MB');
+const secureSingleUploadLarge = makeSecureSingleUpload(uploadLarge, '100MB');
 
 registerRoutes(app, {
     presence, sharp, io,
@@ -370,8 +407,8 @@ registerRoutes(app, {
     JWT_SECRET, JWT_EXPIRES_IN, REGISTRATION_ENABLED, VERSION, DEFAULT_AVATAR,
     ADMIN_CREDENTIALS,
     loginRateLimiter, registrationRateLimiter, adminLoginRateLimiter, uploadRateLimiter,
-    secureSingleUpload, deleteRecallAttachment, cleanupUploadedFiles, removeUploadedFile,
-    IMAGE_UPLOAD_TYPES, VOICE_UPLOAD_TYPES,
+    secureSingleUpload, secureSingleUploadLarge, deleteRecallAttachment, cleanupUploadedFiles, removeUploadedFile,
+    IMAGE_UPLOAD_TYPES, VOICE_UPLOAD_TYPES, VIDEO_UPLOAD_TYPES, FILE_UPLOAD_TYPES,
     isValidChannel, isPrivateChannel, canAccessChannel, getAvailableChannels,
     getChannelMemberSummaries, getPublicChannelMembers, broadcastChannelPresence,
     getChannelOnlineCount, broadcastUserPresence, broadcastAllChannelPresence,
@@ -447,6 +484,39 @@ server.listen(PORT, '0.0.0.0', () => {
             io.to('user:' + toId).emit('dmRecalledMessageDeleted', { messageId });
         });
     }, 60 * 1000);
+
+    // 上传文件过期清理：图片/视频/语音/文件 7 天自动删除（公共频道 + 私聊），消息保留并标记已过期
+    const MEDIA_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+    function runMediaExpiry() {
+        try {
+            const cutoff = new Date(Date.now() - MEDIA_EXPIRY_MS).toISOString();
+            const { messages: expired, dmMessages: expiredDm } = db.listExpiredMediaMessages(cutoff);
+            expired.forEach(m => {
+                deleteRecallAttachment(m.image);
+                deleteRecallAttachment(m.video);
+                deleteRecallAttachment(m.voice);
+                deleteRecallAttachment(m.file);
+                db.markMessageExpired(m.id);
+                io.to(m.channel).emit('messageMediaExpired', { messageId: m.id, channel: m.channel });
+            });
+            expiredDm.forEach(m => {
+                deleteRecallAttachment(m.image);
+                deleteRecallAttachment(m.video);
+                deleteRecallAttachment(m.voice);
+                deleteRecallAttachment(m.file);
+                db.markDmMessageExpired(m.id);
+                io.to('user:' + m.from_user_id).emit('dmMessageMediaExpired', { messageId: m.id });
+                io.to('user:' + m.to_user_id).emit('dmMessageMediaExpired', { messageId: m.id });
+            });
+            if (expired.length || expiredDm.length) {
+                console.log(`Media expiry: cleaned ${expired.length} channel + ${expiredDm.length} dm messages`);
+            }
+        } catch (err) {
+            console.error('Media expiry job failed:', err.message);
+        }
+    }
+    runMediaExpiry();
+    setInterval(runMediaExpiry, 6 * 60 * 60 * 1000);
 });
 
 const PUBLIC_DIR = path.join(__dirname, 'public');

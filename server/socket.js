@@ -97,7 +97,7 @@ function registerSocketHandlers(io, ctx) {
 
         socket.on('sendMessage', (data) => {
             console.log('接收到sendMessage事件:', data);
-            const { channel, content, image, voice, file, file_name } = data || {};
+            const { channel, content, image, video, voice, file, file_name, video_name } = data || {};
             const userId = getAuthenticatedUserId();
 
             const user = db.getUserById(userId);
@@ -115,8 +115,8 @@ function registerSocketHandlers(io, ctx) {
             }
 
             // 清洗媒体附件 URL：拒绝 javascript: 等危险协议，防止存储型 XSS
-            const media = { image, voice, file };
-            for (const key of ['image', 'voice', 'file']) {
+            const media = { image, video, voice, file };
+            for (const key of ['image', 'video', 'voice', 'file']) {
                 const checked = validateMediaUrl(media[key]);
                 if (!checked.ok) {
                     socket.emit('messageError', { error: '媒体地址不合法，消息已拒绝' });
@@ -127,9 +127,10 @@ function registerSocketHandlers(io, ctx) {
 
             const containsBadWords = badWordsFilter.containsBadWords(content);
 
-            const messageType = media.image ? 'image' : (media.voice ? 'voice' : 'text');
+            const messageType = media.image ? 'image' : (media.video ? 'video' : (media.voice ? 'voice' : 'text'));
             logger.chatLog(channel, userId, content, messageType, {
                 image: media.image,
+                video: media.video,
                 voice: media.voice,
                 reply_to: data.reply_to,
                 is_blocked: containsBadWords
@@ -148,9 +149,10 @@ function registerSocketHandlers(io, ctx) {
                 channel,
                 content,
                 image: media.image,
+                video: media.video,
                 voice: media.voice,
                 file: media.file,
-                file_name: data.file_name,
+                file_name: data.video_name || data.file_name,
                 reply_to: data.reply_to,
                 is_blocked: containsBadWords
             });
@@ -161,6 +163,7 @@ function registerSocketHandlers(io, ctx) {
                 channel: channel,
                 content: content,
                 image: media.image,
+                video: media.video,
                 voice: media.voice,
                 file: media.file,
                 file_name: newMessage.file_name,
@@ -184,6 +187,7 @@ function registerSocketHandlers(io, ctx) {
                         nickname: repliedUser?.nickname || repliedUser?.username || '该账户已注销',
                         content: repliedMessage.content,
                         image: repliedMessage.image,
+                        video: repliedMessage.video,
                         is_blocked: repliedMessage.is_blocked
                     };
                 }
@@ -214,7 +218,7 @@ function registerSocketHandlers(io, ctx) {
         });
 
         socket.on('sendPrivateMessage', (data) => {
-            const { toUserId, content, image, voice, file, file_name, reply_to } = data || {};
+            const { toUserId, content, image, video, voice, file, file_name, video_name, reply_to } = data || {};
             const fromId = getAuthenticatedUserId();
             const toId = parseInt(toUserId);
             if (!fromId) {
@@ -237,8 +241,8 @@ function registerSocketHandlers(io, ctx) {
             }
 
             // 清洗媒体附件 URL：拒绝 javascript: 等危险协议，防止存储型 XSS
-            const dmMedia = { image, voice, file };
-            for (const key of ['image', 'voice', 'file']) {
+            const dmMedia = { image, video, voice, file };
+            for (const key of ['image', 'video', 'voice', 'file']) {
                 const checked = validateMediaUrl(dmMedia[key]);
                 if (!checked.ok) {
                     socket.emit('privateMessageError', { error: '媒体地址不合法，消息已拒绝' });
@@ -252,9 +256,10 @@ function registerSocketHandlers(io, ctx) {
                 to_user_id: toId,
                 content,
                 image: dmMedia.image,
+                video: dmMedia.video,
                 voice: dmMedia.voice,
                 file: dmMedia.file,
-                file_name,
+                file_name: video_name || file_name,
                 reply_to: reply_to != null ? reply_to : undefined
             });
             if (!newMessage) return;
@@ -318,11 +323,13 @@ function registerSocketHandlers(io, ctx) {
             }
 
             deleteRecallAttachment(message.image);
+            deleteRecallAttachment(message.video);
             deleteRecallAttachment(message.voice);
 
             const updated = db.updateMessage(messageId, {
                 content: '[此消息已撤回]',
                 image: null,
+                video: null,
                 voice: null,
                 is_recalled: true,
                 recalled_at: new Date().toISOString()
@@ -336,6 +343,7 @@ function registerSocketHandlers(io, ctx) {
                     channel,
                     content: '[此消息已撤回]',
                     image: null,
+                    video: null,
                     voice: null,
                     is_recalled: true,
                     recalled_at: updated.recalled_at,
@@ -378,11 +386,13 @@ function registerSocketHandlers(io, ctx) {
                 return;
             }
             deleteRecallAttachment(message.image);
+            deleteRecallAttachment(message.video);
             deleteRecallAttachment(message.voice);
 
             const updated = db.updateDmMessage(mid, {
                 content: '[此消息已撤回]',
                 image: null,
+                video: null,
                 voice: null,
                 is_recalled: true,
                 recalled_at: new Date().toISOString()
@@ -394,7 +404,7 @@ function registerSocketHandlers(io, ctx) {
             logger.auditLog('dm_message_recall', uid, { messageId: mid });
             const recaller = db.getUserById(message.from_user_id);
             const recalledByDisplayName = recaller ? (recaller.nickname || recaller.username) : '用户';
-            const payload = { messageId: mid, content: '[此消息已撤回]', image: null, voice: null, is_recalled: true, recalled_at: updated.recalled_at, originalContent: message.content || null, recalledByDisplayName };
+            const payload = { messageId: mid, content: '[此消息已撤回]', image: null, video: null, voice: null, is_recalled: true, recalled_at: updated.recalled_at, originalContent: message.content || null, recalledByDisplayName };
             const fromId = Number(message.from_user_id);
             const toId = Number(message.to_user_id);
             io.to('user:' + fromId).emit('dmMessageRecalled', payload);

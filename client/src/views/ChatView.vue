@@ -184,9 +184,18 @@ watch([activeChannel, activePeerId], ([channel, peerId]) => {
 @media (max-width: 860px) {
   .stage { padding: 0; }
   .app { grid-template-columns: 1fr; border-radius: 0; border: 0; }
+  .app.collapsed { grid-template-columns: 1fr; } /* 修复手机上收起侧边栏后仍按三栏排 */
   .aside { display: none; }
   .mobile-top { display: flex; }
   .app .rail, .app.collapsed .rail { position: fixed; inset: 0 auto 0 0; z-index: 20; width: min(280px, 85vw); transform: translateX(-100%); transition: transform 0.2s ease; border-radius: 0; }
   .app .rail.open, .app.collapsed .rail.open { transform: translateX(0); }
+  /* 手机端收紧间距，让内容更紧凑 */
+  .main-head { padding: 10px 14px; }
+  .mobile-top { padding: 10px 14px; }
+  .main-head .head-title { font-size: 15px; }
+  .messages { padding: 12px 12px 6px; }
+  .msg { padding: 6px 6px; }
+  .msg .text { font-size: 15px; }
+  .composer { padding: 8px 12px 12px; }
 }
 </style>

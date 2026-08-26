@@ -40,6 +40,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-4 14-3-5-7-2z"/></svg>
         </button>
       </div>
+      <div v-if="uploadError" class="upload-error">{{ uploadError }}</div>
       <StickerPicker
         v-if="stickerOpen"
         @select-emoji="insertEmoji"
@@ -69,6 +70,7 @@ const text = ref('');
 const textareaRef = ref(null);
 const fileInput = ref(null);
 const stickerInput = ref(null);
+const uploadError = ref('');
 const stickerOpen = ref(false);
 const mentionOpen = ref(false);
 const mentionQuery = ref('');
@@ -163,26 +165,60 @@ async function send() {
   }
 }
 
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const BROWSER_VIDEO_EXT = ['mp4', 'webm', 'mov'];
+
+function isPreviewVideo(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  return file.type.startsWith('video/') && BROWSER_VIDEO_EXT.includes(ext);
+}
+
+// 通过 socket 发送媒体消息（图片/视频/文件）
+function sendMedia(payload) {
+  const socket = getSocket();
+  if (props.peerId != null) {
+    socket.emit('sendPrivateMessage', { toUserId: props.peerId, content: '', ...payload });
+  } else if (props.channel) {
+    socket.emit('sendMessage', { channel: props.channel, content: '', ...payload });
+  }
+}
+
+async function uploadForm(fieldName, file, apiPath) {
+  const form = new FormData();
+  form.append(fieldName, file);
+  const res = await fetch(apiPath, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + getToken() },
+    body: form
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error || '上传失败');
+  return data;
+}
+
 async function onFileChange(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
+  uploadError.value = '';
   try {
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch('/api/upload/file', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + getToken() },
-      body: form
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error || '上传失败');
-    const socket = getSocket();
-    if (props.peerId != null) {
-      socket.emit('sendPrivateMessage', { toUserId: props.peerId, content: '', file: data.file, file_name: data.file_name });
-    } else if (props.channel) {
-      socket.emit('sendMessage', { channel: props.channel, content: '', file: data.file, file_name: data.file_name });
+    if (file.type.startsWith('image/')) {
+      // 图片 → 聊天框直接预览
+      const data = await uploadForm('image', file, '/api/upload/image');
+      sendMedia({ image: data.image });
+    } else if (isPreviewVideo(file) && file.size <= MAX_VIDEO_BYTES) {
+      // 浏览器可播放的小视频 → 聊天框内嵌播放
+      const data = await uploadForm('video', file, '/api/upload/video');
+      sendMedia({ video: data.video, video_name: data.video_name || file.name });
+    } else if (isPreviewVideo(file)) {
+      uploadError.value = '视频超过 100MB，无法预览发送';
+    } else {
+      // 文件 → 存服务器（公共频道与私聊一致，7 天有效），对方可稍后下载
+      const data = await uploadForm('file', file, '/api/upload/file');
+      sendMedia({ file: data.file, file_name: data.file_name });
     }
-  } catch { /* 上传失败忽略 */ } finally {
+  } catch (err) {
+    uploadError.value = err.message || '发送失败，请重试';
+  } finally {
     e.target.value = '';
   }
 }
@@ -289,4 +325,5 @@ document.addEventListener('click', onDocClick);
 .send:hover:not(:disabled) { background: var(--accent-strong); }
 .send:active:not(:disabled) { transform: translateY(1px); }
 .send:disabled { opacity: 0.5; cursor: default; }
+.upload-error { color: var(--danger, #e5484d); font-size: 12px; padding: 4px 2px 0; }
 </style>
