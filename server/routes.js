@@ -66,10 +66,10 @@ app.get('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res) 
 app.post('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     if (!name || name.length > 28 || /[\r\n<>]/.test(name)) {
-        return res.status(400).json({ error: 'Invalid channel name' });
+        return res.status(400).json({ error: '频道名称无效' });
     }
     if (isValidChannel(name)) {
-        return res.status(409).json({ error: 'Channel already exists' });
+        return res.status(409).json({ error: '频道已存在' });
     }
     db.channels[name] = { password: null, members: [req.userId], owner_id: req.userId };
     db.saveData();
@@ -77,13 +77,13 @@ app.post('/api/channels', authenticateUser, requireAuthenticatedUser, (req, res)
 });
 
 app.post('/api/channel/verify-password', authenticateUser, requireAuthenticatedUser, (req, res) => {
-    return res.status(410).json({ error: 'Password-based channel access is no longer supported' });
+    return res.status(410).json({ error: '已不再支持密码访问频道' });
 });
 
 app.put('/api/channel/:channel/alias', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
-    if (!isValidChannel(channel)) return res.status(404).json({ error: 'Channel not found' });
-    if (!canAccessChannel(channel, req.userId)) return res.status(403).json({ error: 'Channel access denied' });
+    if (!isValidChannel(channel)) return res.status(404).json({ error: '频道不存在' });
+    if (!canAccessChannel(channel, req.userId)) return res.status(403).json({ error: '无权访问该频道' });
     const alias = typeof req.body?.alias === 'string' ? req.body.alias.trim() : '';
     if (alias.length > 28) return res.status(400).json({ error: '备注最多 28 个字符' });
     db.setChannelAlias(req.userId, channel, alias);
@@ -92,14 +92,14 @@ app.put('/api/channel/:channel/alias', authenticateUser, requireAuthenticatedUse
 
 app.put('/api/pin', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { kind, key, pinned } = req.body || {};
-    if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: 'Invalid pin' });
+    if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: '置顶参数无效' });
     db.setPin(req.userId, kind, String(key), !!pinned);
     res.json({ success: true, pinned: !!pinned });
 });
 
 app.post('/api/read', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { kind, key } = req.body || {};
-    if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: 'Invalid read' });
+    if (!['channel', 'dm'].includes(kind) || key == null || key === '') return res.status(400).json({ error: '已读参数无效' });
     db.markRead(req.userId, kind, String(key));
     res.json({ success: true });
 });
@@ -119,11 +119,11 @@ app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUs
     const { channel } = req.params;
     if (!isPrivateChannel(channel)) return res.status(400).json({ error: '公共频道无法退出' });
     const channelData = db.channels[channel];
-    if (!channelData) return res.status(404).json({ error: 'Channel not found' });
+    if (!channelData) return res.status(404).json({ error: '频道不存在' });
     const uid = parseInt(req.userId, 10);
     if (channelData.owner_id === uid) return res.status(400).json({ error: '频道创建者不能退出' });
     const idx = channelData.members.indexOf(uid);
-    if (idx === -1) return res.status(400).json({ error: 'Not a member' });
+    if (idx === -1) return res.status(400).json({ error: '不是频道成员' });
     channelData.members.splice(idx, 1);
     db.saveData();
     broadcastChannelPresence(channel);
@@ -138,7 +138,7 @@ app.delete('/api/channel/:channel', authenticateUser, requireAuthenticatedUser, 
     const { channel } = req.params;
     if (!isPrivateChannel(channel)) return res.status(400).json({ error: '公共频道无法解散' });
     const channelData = db.channels[channel];
-    if (!channelData) return res.status(404).json({ error: 'Channel not found' });
+    if (!channelData) return res.status(404).json({ error: '频道不存在' });
     if (channelData.owner_id !== parseInt(req.userId, 10)) return res.status(403).json({ error: '只有创建者可以解散频道' });
     const memberIds = [...channelData.members];
     delete db.channels[channel];
@@ -176,7 +176,7 @@ app.post('/api/register', registrationRateLimiter, async (req, res) => {
         }
 
         if (email && db.getUserByEmail(email)) {
-            return res.status(400).json({ error: 'Email already exists' });
+            return res.status(400).json({ error: '邮箱已被使用' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -201,7 +201,7 @@ app.post('/api/register', registrationRateLimiter, async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: '服务器错误' });
     }
 });
 
@@ -209,15 +209,15 @@ app.post('/api/login', loginRateLimiter, async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required' });
+        return res.status(400).json({ error: '请填写账号和密码' });
     }
 
     try {
         const user = db.getUserByUsername(username);
-        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+        if (!user) return res.status(401).json({ error: '账号或密码错误' });
         if (user.banned) return res.status(403).json({ error: '账号已被封禁', code: 'banned' });
         const match = await bcrypt.compare(password, user.password);
-        if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+        if (!match) return res.status(401).json({ error: '账号或密码错误' });
         logger.auditLog('user_login', user.id, { username: user.username });
         const session = createUserSessionToken(user.id, JWT_SECRET, JWT_EXPIRES_IN);
         db.setUserSession(user.id, session.sessionId);
@@ -236,7 +236,7 @@ app.post('/api/login', loginRateLimiter, async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: '服务器错误' });
     }
 });
 app.post('/api/logout', authenticateUser, requireAuthenticatedUser, (req, res) => {
@@ -248,14 +248,14 @@ app.post('/api/admin/login', adminLoginRateLimiter, async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required' });
+        return res.status(400).json({ error: '请填写账号和密码' });
     }
     const passwordMatches = username === ADMIN_CREDENTIALS.username && await bcrypt.compare(password, ADMIN_CREDENTIALS.passwordHash);
     if (passwordMatches) {
         const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
         res.json({ token, admin: true });
     } else {
-        res.status(401).json({ error: 'Invalid admin credentials' });
+        res.status(401).json({ error: '管理员账号或密码错误' });
     }
 });
 
@@ -266,15 +266,15 @@ app.put('/api/admin/password', authenticateAdmin, async (req, res) => {
     const newPassword = typeof rawNew === 'string' ? rawNew.trim() : '';
 
     if (!currentPassword || !newPassword) {
-        return res.status(400).json({ error: 'Current password and new password are required' });
+        return res.status(400).json({ error: '请填写当前密码和新密码' });
     }
     if (!isStrongAdminPassword(newPassword)) {
-        return res.status(400).json({ error: 'Admin password must be at least 12 characters and not use the default password' });
+        return res.status(400).json({ error: '管理员密码至少 12 位，且不能使用默认密码' });
     }
 
     if (!await bcrypt.compare(currentPassword, ADMIN_CREDENTIALS.passwordHash)) {
         return res.status(401).json({
-            error: 'Current password is incorrect'
+            error: '当前密码不正确'
         });
     }
 
@@ -283,7 +283,7 @@ app.put('/api/admin/password', authenticateAdmin, async (req, res) => {
     ADMIN_CREDENTIALS.passwordHash = passwordHash;
     if (!saveAdminCredentials()) {
         ADMIN_CREDENTIALS.passwordHash = previousHash;
-        return res.status(500).json({ error: 'Could not save admin password' });
+        return res.status(500).json({ error: '保存管理员密码失败' });
     }
     ensureAdministratorUser();
     res.json({ success: true, message: 'Admin password updated successfully' });
@@ -308,35 +308,35 @@ app.get('/api/admin/users', authenticateAdmin, (req, res) => {
 
 app.put('/api/admin/users/:userId/ban', authenticateAdmin, (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+    if (!userId) return res.status(400).json({ error: '用户 ID 无效' });
     const user = db.getUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: '用户不存在' });
     if (user.username === ADMIN_CREDENTIALS.username) return res.status(403).json({ error: '不能封禁管理员账号' });
     const updated = db.updateUser(userId, { banned: true });
-    if (!updated) return res.status(500).json({ error: 'Failed to update' });
+    if (!updated) return res.status(500).json({ error: '更新失败' });
     io.to(`user:${userId}`).emit('userBanned');
     res.json({ success: true, message: '用户已封禁', user: { id: updated.id, username: updated.username, banned: true } });
 });
 
 app.put('/api/admin/users/:userId/unban', authenticateAdmin, (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+    if (!userId) return res.status(400).json({ error: '用户 ID 无效' });
     const user = db.getUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: '用户不存在' });
     const updated = db.updateUser(userId, { banned: false });
-    if (!updated) return res.status(500).json({ error: 'Failed to update' });
+    if (!updated) return res.status(500).json({ error: '更新失败' });
     io.to(`user:${userId}`).emit('userUnbanned');
     res.json({ success: true, message: '用户已解封', user: { id: updated.id, username: updated.username, banned: false } });
 });
 
 app.delete('/api/admin/users/:userId', authenticateAdmin, (req, res) => {
     const userId = parseInt(req.params.userId, 10);
-    if (!userId) return res.status(400).json({ error: 'Invalid user id' });
+    if (!userId) return res.status(400).json({ error: '用户 ID 无效' });
     const user = db.getUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: '用户不存在' });
     if (user.username === ADMIN_CREDENTIALS.username) return res.status(403).json({ error: '不能删除管理员账号' });
     const ok = db.deleteUser(userId);
-    if (!ok) return res.status(500).json({ error: 'Failed to delete' });
+    if (!ok) return res.status(500).json({ error: '删除失败' });
     io.to(`user:${userId}`).emit('userDeleted');
     res.json({ success: true, message: '用户已删除' });
 });
@@ -401,7 +401,7 @@ app.put('/api/admin/deactivation-requests/:id', authenticateAdmin, (req, res) =>
     try {
         const id = parseInt(req.params.id, 10);
         const { action } = req.body || {};
-        if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'action 必须为 approve 或 reject' });
+        if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: '操作必须是 approve 或 reject' });
         if (typeof db.getDeactivationRequestById !== 'function') return res.status(503).json({ error: '服务未就绪，请重启后端服务后重试' });
         const request = db.getDeactivationRequestById(id);
         if (!request) return res.status(404).json({ error: '申请不存在' });
@@ -428,14 +428,14 @@ app.put('/api/admin/deactivation-requests/:id', authenticateAdmin, (req, res) =>
 app.post('/api/channel/:channel/members', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
     if (!isPrivateChannel(channel)) {
-        return res.status(404).json({ error: 'Private channel not found' });
+        return res.status(404).json({ error: '私密频道不存在' });
     }
     const channelData = db.channels[channel];
     if (channelData.owner_id !== req.userId) {
-        return res.status(403).json({ error: 'Only the channel owner can invite members' });
+        return res.status(403).json({ error: '只有频道创建者可以邀请成员' });
     }
     if (!Array.isArray(req.body?.usernames) || req.body.usernames.some(username => typeof username !== 'string')) {
-        return res.status(400).json({ error: 'usernames must be an array of strings' });
+        return res.status(400).json({ error: '用户列表格式不正确' });
     }
 
     const usernames = [...new Set(req.body.usernames.filter(username => username.length > 0))];
@@ -512,12 +512,12 @@ app.post('/api/channel/invites/:id/respond', authenticateUser, requireAuthentica
 app.get('/api/channel/:channel/members', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
     if (!isValidChannel(channel)) {
-        return res.status(404).json({ error: 'Channel not found' });
+        return res.status(404).json({ error: '频道不存在' });
     }
     if (isPrivateChannel(channel)) {
         const uid = parseInt(req.userId, 10);
         if (!db.channels[channel].members.includes(uid)) {
-            return res.status(403).json({ error: 'Not a member' });
+            return res.status(403).json({ error: '不是频道成员' });
         }
         return res.json({ members: getChannelMemberSummaries(channel, req.userId) });
     }
@@ -529,14 +529,14 @@ app.delete('/api/channel/:channel/members/:userId', authenticateUser, requireAut
     const parsedUserId = Number.parseInt(userId, 10);
 
     if (!isPrivateChannel(channel)) {
-        return res.status(404).json({ error: 'Private channel not found' });
+        return res.status(404).json({ error: '私密频道不存在' });
     }
     const channelData = db.channels[channel];
     if (channelData.owner_id !== req.userId) {
-        return res.status(403).json({ error: 'Only the channel owner can remove members' });
+        return res.status(403).json({ error: '只有频道创建者可以移除成员' });
     }
     if (parsedUserId === channelData.owner_id) {
-        return res.status(400).json({ error: 'The channel owner cannot be removed', code: 'owner_cannot_be_removed' });
+        return res.status(400).json({ error: '频道创建者不能被移除', code: 'owner_cannot_be_removed' });
     }
     const memberIndex = channelData.members.indexOf(parsedUserId);
     if (memberIndex !== -1) {
@@ -545,7 +545,7 @@ app.delete('/api/channel/:channel/members/:userId', authenticateUser, requireAut
         broadcastChannelPresence(channel);
         res.json({ success: true, message: 'User removed from channel' });
     } else {
-        res.status(404).json({ error: 'User not found in channel' });
+        res.status(404).json({ error: '用户不在该频道' });
     }
 });
 
@@ -554,11 +554,11 @@ app.put('/api/channel/:channel/password', authenticateAdmin, (req, res) => {
     const { newPassword } = req.body;
 
     if (!newPassword) {
-        return res.status(400).json({ error: 'New password is required' });
+        return res.status(400).json({ error: '请填写新密码' });
     }
 
     if (!isPrivateChannel(channel)) {
-        return res.status(400).json({ error: 'Not a private channel' });
+        return res.status(400).json({ error: '不是私密频道' });
     }
 
     db.channels[channel].password = newPassword;
@@ -568,7 +568,7 @@ app.put('/api/channel/:channel/password', authenticateAdmin, (req, res) => {
 app.get('/api/profile/:userId', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { userId } = req.params;
     const user = db.getUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: '用户不存在' });
     const userProfile = {
         id: user.id,
         username: user.username,
@@ -590,12 +590,12 @@ app.put('/api/profile/:userId', authenticateUser, requireUser, (req, res) => {
     if (userId !== parseInt(req.userId, 10)) return res.status(403).json({ error: '只能修改自己的资料' });
     const { bio, gender, email, nickname, allow_add_friend_from_profile, presence_status } = req.body;
     if (presence_status !== undefined && !VALID_PRESENCE_STATUSES.has(presence_status)) {
-        return res.status(400).json({ error: 'Invalid presence status', code: 'invalid_presence_status' });
+        return res.status(400).json({ error: '在线状态无效', code: 'invalid_presence_status' });
     }
     if (email !== undefined && email !== null && email !== '') {
         const existingUser = db.getUserByEmail(email);
         if (existingUser && existingUser.id !== userId) {
-            return res.status(400).json({ error: 'Email already exists' });
+            return res.status(400).json({ error: '邮箱已被使用' });
         }
     }
     let checkedNickname;
@@ -618,7 +618,7 @@ app.put('/api/profile/:userId', authenticateUser, requireUser, (req, res) => {
     }
     if (Object.keys(updates).length === 0) return res.json({ success: true });
     const updatedUser = db.updateUser(userId, updates);
-    if (!updatedUser) return res.status(404).json({ error: 'User not found' });
+    if (!updatedUser) return res.status(404).json({ error: '用户不存在' });
     if (presence_status !== undefined) {
         broadcastUserPresence(userId);
         broadcastAllChannelPresence();
@@ -630,7 +630,7 @@ app.post('/api/change-password', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ error: 'Authorization token required' });
+        return res.status(401).json({ error: '需要登录令牌' });
     }
 
     const passwordCheck = validatePassword(newPassword);
@@ -642,7 +642,7 @@ app.post('/api/change-password', async (req, res) => {
         const user = verifyCurrentUserToken(token, JWT_SECRET, db);
         const userId = user.id;
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ error: '用户不存在' });
         }
         const match = await bcrypt.compare(currentPassword, user.password);
         if (!match) {
@@ -654,21 +654,21 @@ app.post('/api/change-password', async (req, res) => {
         if (encrypted_private_key !== undefined) updates.encrypted_private_key = encrypted_private_key;
         const updatedUser = db.updateUser(userId, updates);
         if (!updatedUser) {
-            return res.status(500).json({ error: 'Failed to update password', success: false });
+            return res.status(500).json({ error: '修改密码失败', success: false });
         }
 
         res.json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
         if (error.name === 'JsonWebTokenError') {
-            return res.status(401).json({ error: 'Invalid token', success: false });
+            return res.status(401).json({ error: '令牌无效', success: false });
         }
-        res.status(500).json({ error: 'Server error', success: false });
+        res.status(500).json({ error: '服务器错误', success: false });
     }
 });
 
 app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('avatar'), async (req, res) => {
     if (!req.file) {
-        return res.status(400).json({ error: 'File is required' });
+        return res.status(400).json({ error: '请选择文件' });
     }
 
     const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -709,7 +709,7 @@ app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, uploa
         const updatedUser = db.updateUser(req.userId, { avatar: avatarUrl });
         if (!updatedUser) {
             removeUploadedFile({ path: createdAvatarPath });
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ error: '用户不存在' });
         }
 
         res.json({ success: true, avatar: avatarUrl });
@@ -717,14 +717,14 @@ app.post('/api/upload/avatar', authenticateUser, requireAuthenticatedUser, uploa
         console.error('Avatar upload error:', error);
         cleanupUploadedFiles(req);
         removeUploadedFile({ path: createdAvatarPath });
-        res.status(500).json({ error: error.message || 'Image processing error' });
+        res.status(500).json({ error: error.message || '图片处理失败' });
     }
 });
 
 app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('image'), async (req, res) => {
     if (!req.file) {
         console.error('Upload failed: No file provided');
-        return res.status(400).json({ error: 'File is required' });
+        return res.status(400).json({ error: '请选择文件' });
     }
 
     const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
@@ -766,15 +766,15 @@ app.post('/api/upload/image', authenticateUser, requireAuthenticatedUser, upload
         cleanupUploadedFiles(req);
         removeUploadedFile({ path: createdImagePath });
         if (error.code === 'LIMIT_FILE_SIZE') {
-            res.status(413).json({ error: 'File size exceeds limit (10MB)' });
+            res.status(413).json({ error: '文件大小超过限制（10MB）' });
         } else {
-            res.status(500).json({ error: 'Image processing error' });
+            res.status(500).json({ error: '图片处理失败' });
         }
     }
 });
 
 app.post('/api/upload/file', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUploadLarge('file'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'File is required' });
+    if (!req.file) return res.status(400).json({ error: '请选择文件' });
     try {
         const originalName = decodeOriginalName(req.file.originalname) || 'file';
         const safeName = 'file-' + req.file.filename;
@@ -784,12 +784,12 @@ app.post('/api/upload/file', authenticateUser, requireAuthenticatedUser, uploadR
     } catch (error) {
         console.error('File upload failed:', error);
         cleanupUploadedFiles(req);
-        res.status(500).json({ error: 'File upload error' });
+        res.status(500).json({ error: '文件上传失败' });
     }
 });
 
 app.post('/api/upload/video', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUploadLarge('video'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Video is required' });
+    if (!req.file) return res.status(400).json({ error: '请选择视频' });
     try {
         const originalName = decodeOriginalName(req.file.originalname) || 'video';
         const safeName = 'video-' + req.file.filename;
@@ -799,7 +799,7 @@ app.post('/api/upload/video', authenticateUser, requireAuthenticatedUser, upload
     } catch (error) {
         console.error('Video upload failed:', error);
         cleanupUploadedFiles(req);
-        res.status(500).json({ error: 'Video upload error' });
+        res.status(500).json({ error: '视频上传失败' });
     }
 });
 
@@ -807,7 +807,7 @@ app.post('/api/upload/video', authenticateUser, requireAuthenticatedUser, upload
 const musicCache = new Map();
 app.get('/api/music', async (req, res) => {
     const id = String(req.query.id || '').replace(/\D/g, '');
-    if (!id) return res.status(400).json({ error: 'id required' });
+    if (!id) return res.status(400).json({ error: '缺少歌曲 ID' });
     if (musicCache.has(id)) return res.json(musicCache.get(id));
     try {
         const controller = new AbortController();
@@ -821,7 +821,7 @@ app.get('/api/music', async (req, res) => {
         const song = (data.songs || [null])[0];
         let info;
         if (!song) {
-            info = { ok: false, error: 'not found' };
+            info = { ok: false, error: '未找到' };
         } else {
             info = {
                 ok: true, id,
@@ -835,7 +835,7 @@ app.get('/api/music', async (req, res) => {
         musicCache.set(id, info);
         res.json(info);
     } catch (err) {
-        res.status(502).json({ ok: false, error: 'fetch failed' });
+        res.status(502).json({ ok: false, error: '网络请求失败' });
     }
 });
 
@@ -862,7 +862,7 @@ app.get('/api/admin/logs/list', authenticateAdmin, (req, res) => {
 
         res.json({ logFiles });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to get log files: ' + error.message });
+        res.status(500).json({ error: '获取日志列表失败：' + error.message });
     }
 });
 
@@ -874,7 +874,7 @@ app.get('/api/admin/logs/content/:filename', authenticateAdmin, (req, res) => {
     const { search = '', page = 1, limit = 50, type = '' } = req.query;
 
     if (!filename.match(/^[a-zA-Z0-9\-_\.]+$/)) {
-        return res.status(400).json({ error: 'Invalid filename' });
+        return res.status(400).json({ error: '文件名无效' });
     }
 
     const logPath = path.join(ROOT, 'server', 'logs', filename);
@@ -922,14 +922,14 @@ app.get('/api/admin/logs/content/:filename', authenticateAdmin, (req, res) => {
             totalPages: Math.ceil(logs.length / limit)
         });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to read log file: ' + error.message });
+        res.status(500).json({ error: '读取日志失败：' + error.message });
     }
 });
 
 app.post('/api/upload/voice', authenticateUser, requireAuthenticatedUser, uploadRateLimiter, secureSingleUpload('voice'), async (req, res) => {
     if (!req.file) {
         console.error('Voice upload failed: No file provided');
-        return res.status(400).json({ error: 'File is required' });
+        return res.status(400).json({ error: '请选择文件' });
     }
 
     console.log('Voice upload started:', {
@@ -945,7 +945,7 @@ app.post('/api/upload/voice', authenticateUser, requireAuthenticatedUser, upload
 
         if (!VOICE_UPLOAD_TYPES.has(originalExt)) {
             cleanupUploadedFiles(req);
-            return res.status(400).json({ error: 'Unsupported file type' });
+            return res.status(400).json({ error: '不支持的文件类型' });
         }
 
         voicePath = path.join(ROOT, 'public', 'uploads', 'voice-' + req.file.filename);
@@ -960,24 +960,24 @@ app.post('/api/upload/voice', authenticateUser, requireAuthenticatedUser, upload
         cleanupUploadedFiles(req);
         removeUploadedFile({ path: voicePath });
         if (error.code === 'LIMIT_FILE_SIZE') {
-            res.status(413).json({ error: 'File size exceeds limit (10MB)' });
+            res.status(413).json({ error: '文件大小超过限制（10MB）' });
         } else {
-            res.status(500).json({ error: 'Voice upload error' });
+            res.status(500).json({ error: '语音上传失败' });
         }
     }
 });
 
 app.post('/api/channel/:channel/clear', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
-    if (!isValidChannel(channel)) return res.status(400).json({ error: 'Invalid channel' });
+    if (!isValidChannel(channel)) return res.status(400).json({ error: '频道无效' });
     const userId = parseInt(req.userId, 10);
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!canAccessChannel(channel, userId)) return res.status(403).json({ error: 'Channel access denied' });
+    if (!userId) return res.status(401).json({ error: '未授权' });
+    if (!canAccessChannel(channel, userId)) return res.status(403).json({ error: '无权访问该频道' });
     try {
         const last_clear_at = db.setChannelClearTime(userId, channel);
         res.json({ success: true, last_clear_at });
     } catch (e) {
-        res.status(500).json({ success: false, error: 'Clear failed' });
+        res.status(500).json({ success: false, error: '清空失败' });
     }
 });
 
@@ -985,10 +985,10 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
     const { channel } = req.params;
 
     if (!isValidChannel(channel)) {
-        return res.status(400).json({ error: 'Invalid channel' });
+        return res.status(400).json({ error: '频道无效' });
     }
     if (!canAccessChannel(channel, req.userId)) {
-        return res.status(403).json({ error: 'Channel access denied' });
+        return res.status(403).json({ error: '无权访问该频道' });
     }
 
     let messages = db.getMessagesByChannel(channel);
@@ -1043,8 +1043,8 @@ app.post('/api/messages/:messageId/reaction', authenticateUser, requireAuthentic
     const { messageId } = req.params;
     const { emoji } = req.body || {};
     const message = db.getMessageById(messageId);
-    if (!message) return res.status(404).json({ error: 'Message not found' });
-    if (!canAccessChannel(message.channel, req.userId)) return res.status(403).json({ error: 'Access denied' });
+    if (!message) return res.status(404).json({ error: '消息不存在' });
+    if (!canAccessChannel(message.channel, req.userId)) return res.status(403).json({ error: '无权访问' });
     const reactions = db.toggleReaction(messageId, req.userId, emoji);
     io.to(message.channel).emit('messageReaction', { messageId: parseInt(messageId), reactions });
     res.json({ success: true, reactions });
@@ -1074,7 +1074,7 @@ app.get('/api/friends/requests', authenticateUser, requireUser, (req, res) => {
 app.post('/api/friends/request', authenticateUser, requireUser, (req, res) => {
     const { to, message } = req.body;
     const targetUser = db.getUserByIdentifier(to);
-    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+    if (!targetUser) return res.status(404).json({ error: '用户不存在' });
     const allowAdd = targetUser.allow_add_friend_from_profile;
     if (allowAdd !== true && allowAdd !== 'true') {
         return res.status(403).json({ error: '对方暂未开启权限', code: 'add_friend_disabled' });
@@ -1095,7 +1095,7 @@ app.post('/api/friends/request', authenticateUser, requireUser, (req, res) => {
             already_friends: '你们已经是好友了',
             request_already_pending: '好友申请已在处理中'
         };
-        return res.status(400).json({ error: map[result.error] || 'Failed to create request' });
+        return res.status(400).json({ error: map[result.error] || '创建好友申请失败' });
     }
     io.to(`user:${targetUser.id}`).emit('friendRequestReceived', {
         requestId: result.request.id,
@@ -1115,7 +1115,7 @@ app.post('/api/friends/request/:requestId/respond', authenticateUser, requireUse
             already_resolved: '该申请已处理',
             invalid_action: '无效操作'
         };
-        return res.status(400).json({ error: map[result.error] || 'Failed to respond request' });
+        return res.status(400).json({ error: map[result.error] || '处理好友申请失败' });
     }
     io.to(`user:${result.request.from_user_id}`).emit('friendRequestUpdated', { requestId: result.request.id, status: result.request.status });
     io.to(`user:${result.request.to_user_id}`).emit('friendRequestUpdated', { requestId: result.request.id, status: result.request.status });
@@ -1124,7 +1124,7 @@ app.post('/api/friends/request/:requestId/respond', authenticateUser, requireUse
 
 app.delete('/api/friends/:friendUserId', authenticateUser, requireUser, (req, res) => {
     const friendUserId = parseInt(req.params.friendUserId);
-    if (!friendUserId) return res.status(400).json({ error: 'Invalid friend id' });
+    if (!friendUserId) return res.status(400).json({ error: '好友 ID 无效' });
     const ok = db.removeFriendship(req.userId, friendUserId);
     if (!ok) db.clearDmDataBetween(req.userId, friendUserId);
     if (ok) {
@@ -1181,21 +1181,21 @@ app.delete('/api/block/:userId', authenticateUser, requireUser, (req, res) => {
 
 app.post('/api/dm/:peerUserId/clear', authenticateUser, requireUser, (req, res) => {
     const peerUserId = parseInt(req.params.peerUserId);
-    if (!peerUserId) return res.status(400).json({ error: 'Invalid peer id' });
-    if (!db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: 'Not friends' });
+    if (!peerUserId) return res.status(400).json({ error: '私聊对象无效' });
+    if (!db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: '你们还不是好友' });
     const dmKey = [parseInt(req.userId, 10), peerUserId].sort((a, b) => a - b).join('_');
     try {
         const last_clear_at = db.setDmClearTime(req.userId, dmKey);
         res.json({ success: true, last_clear_at });
     } catch (e) {
-        res.status(500).json({ success: false, error: 'Clear failed' });
+        res.status(500).json({ success: false, error: '清空失败' });
     }
 });
 
 app.get('/api/dm/:peerUserId/messages', authenticateUser, requireUser, (req, res) => {
     const peerUserId = parseInt(req.params.peerUserId);
-    if (!peerUserId) return res.status(400).json({ error: 'Invalid peer id' });
-    if (!db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: 'Not friends' });
+    if (!peerUserId) return res.status(400).json({ error: '私聊对象无效' });
+    if (!db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: '你们还不是好友' });
     let raw = db.getDmMessagesBetween(req.userId, peerUserId, req.userId);
     const dmKey = [parseInt(req.userId, 10), peerUserId].sort((a, b) => a - b).join('_');
     const lastClearAt = db.getDmClearTime(req.userId, dmKey);
@@ -1229,7 +1229,7 @@ app.get('/api/messages/:channel/search', authenticateUser, requireAuthenticatedU
     const { channel } = req.params;
     const q = String(req.query.q || '').trim().toLowerCase();
     if (!q) return res.json({ results: [] });
-    if (!isValidChannel(channel) || !canAccessChannel(channel, req.userId)) return res.status(403).json({ error: 'Access denied' });
+    if (!isValidChannel(channel) || !canAccessChannel(channel, req.userId)) return res.status(403).json({ error: '无权访问' });
     const results = db.getMessagesByChannel(channel)
         .filter(m => !m.is_blocked && (m.content || '').toLowerCase().includes(q))
         .slice(-50)
@@ -1244,7 +1244,7 @@ app.get('/api/dm/:peerUserId/search', authenticateUser, requireUser, (req, res) 
     const peerUserId = parseInt(req.params.peerUserId);
     const q = String(req.query.q || '').trim().toLowerCase();
     if (!q) return res.json({ results: [] });
-    if (!peerUserId || !db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: 'Not friends' });
+    if (!peerUserId || !db.areFriends(req.userId, peerUserId)) return res.status(403).json({ error: '你们还不是好友' });
     const results = db.getDmMessagesBetween(req.userId, peerUserId, req.userId)
         .filter(m => (m.content || '').toLowerCase().includes(q))
         .slice(-50)
@@ -1258,7 +1258,7 @@ app.get('/api/dm/:peerUserId/search', authenticateUser, requireUser, (req, res) 
 app.delete('/api/dm/messages/:messageId', authenticateUser, requireUser, (req, res) => {
     const { messageId } = req.params;
     const result = db.deleteDmMessageForUser(messageId, req.userId);
-    if (!result.ok) return res.status(404).json({ error: 'Message not found' });
+    if (!result.ok) return res.status(404).json({ error: '消息不存在' });
     io.to(`user:${req.userId}`).emit('dmMessageDeleted', { messageId: parseInt(messageId) });
     res.json({ success: true });
 });

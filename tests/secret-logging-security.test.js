@@ -27,7 +27,7 @@ test('DM encryption requires a configured strong key in production and keeps a w
     const developmentFallback = runNode("const c=require('./server/dm-crypto'); const e=c.encrypt('private'); console.log(c.decrypt(e))", { NODE_ENV: 'development', DM_ENCRYPTION_KEY: '' });
     assert.equal(developmentFallback.status, 0);
     assert.equal(developmentFallback.stdout.trim(), 'private');
-    assert.match(developmentFallback.stderr, /Jchat development fallback/i);
+    assert.match(developmentFallback.stderr, /未设置 DM_ENCRYPTION_KEY，正在使用 Jchat 开发回退密钥/);
 
     for (const key of ['a'.repeat(64), 'a'.repeat(32), 'correct horse battery staple with enough entropy 123']) {
         const result = runNode("const c=require('./server/dm-crypto'); const e=c.encrypt('private'); console.log(e.startsWith('enc:'), c.decrypt(e))", { NODE_ENV: 'production', DM_ENCRYPTION_KEY: key });

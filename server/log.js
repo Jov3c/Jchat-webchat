@@ -97,7 +97,7 @@ function chatLog(channel, userId, content, messageType, details = {}) {
 }
 
 function errorLog(error, context = {}) {
-    const safeError = redactSensitive({ name: error?.name || 'Error', message: error?.message || String(error) });
+    const safeError = redactSensitive({ name: error?.name || '错误', message: error?.message || String(error) });
     const safeContext = redactSensitive(context);
     writeLog(getErrorLogPath(), { timestamp: new Date().toISOString(), error: safeError, context: safeContext });
     console.error('Error:', safeError);

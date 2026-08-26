@@ -25,14 +25,14 @@ function createMiddleware({ db, jwt, JWT_SECRET, verifyCurrentUserToken }) {
 
     function requireUser(req, res, next) {
         const parsed = Number.parseInt(req.userId, 10);
-        if (!Number.isInteger(parsed)) return res.status(401).json({ error: 'Authorization required' });
+        if (!Number.isInteger(parsed)) return res.status(401).json({ error: '需要登录' });
         req.userId = parsed;
         next();
     }
 
     function requireAuthenticatedUser(req, res, next) {
         const parsed = Number.parseInt(req.userId, 10);
-        if (!Number.isInteger(parsed)) return res.status(401).json({ error: 'Authorization required' });
+        if (!Number.isInteger(parsed)) return res.status(401).json({ error: '需要登录' });
         req.userId = parsed;
         next();
     }
@@ -40,17 +40,17 @@ function createMiddleware({ db, jwt, JWT_SECRET, verifyCurrentUserToken }) {
     const authenticateAdmin = (req, res, next) => {
         const token = req.headers.authorization?.split(' ')[1];
         if (!token) {
-            return res.status(401).json({ error: 'Admin token required' });
+            return res.status(401).json({ error: '需要管理员令牌' });
         }
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             if (decoded.admin) {
                 next();
             } else {
-                res.status(403).json({ error: 'Not authorized as admin' });
+                res.status(403).json({ error: '无管理员权限' });
             }
         } catch (error) {
-            res.status(401).json({ error: 'Invalid or expired token' });
+            res.status(401).json({ error: '令牌无效或已过期' });
         }
     };
 

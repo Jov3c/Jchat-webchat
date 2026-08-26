@@ -5,8 +5,8 @@
       <p class="sub">注册新账号</p>
       <input v-model="account" placeholder="账号（登录用，创建后不可改）" autocomplete="username" />
       <input v-model="nickname" placeholder="用户名（显示名，之后可改）" />
-      <input v-model="password" type="password" placeholder="密码（至少 6 位，含字母和数字）" autocomplete="new-password" />
-      <input v-model="confirm" type="password" placeholder="再次输入密码" autocomplete="new-password" />
+      <PasswordInput v-model="password" placeholder="密码（至少 6 位，含字母和数字）" autocomplete="new-password" />
+      <PasswordInput v-model="confirm" placeholder="再次输入密码" autocomplete="new-password" />
       <p v-if="error" class="error">{{ error }}</p>
       <button class="primary" type="submit" :disabled="loading">注册</button>
       <router-link to="/login">已有账号？登录</router-link>
@@ -20,6 +20,7 @@ import { useRouter } from 'vue-router';
 import { http } from '../api/http.js';
 import { storeLogin } from '../stores/auth.js';
 import { setupKeys } from '../stores/keys.js';
+import PasswordInput from '../components/PasswordInput.vue';
 
 const router = useRouter();
 const account = ref(''); const nickname = ref(''); const password = ref(''); const confirm = ref('');

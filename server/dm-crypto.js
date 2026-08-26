@@ -22,14 +22,14 @@ function getKey() {
             return Buffer.from(raw, 'hex');
         }
         if (Buffer.byteLength(raw, 'utf8') < KEY_LEN) {
-            throw new Error('DM_ENCRYPTION_KEY must be exactly 64 hexadecimal characters or at least 32 UTF-8 bytes');
+            throw new Error('DM_ENCRYPTION_KEY 必须是恰好 64 位十六进制字符，或至少 32 个 UTF-8 字节');
         }
         return crypto.createHash('sha256').update(raw, 'utf8').digest();
     }
     if (process.env.NODE_ENV === 'production') {
-        throw new Error('DM_ENCRYPTION_KEY is required in production and must be a strong 32-byte key');
+        throw new Error('生产环境必须配置 DM_ENCRYPTION_KEY，且必须是强 32 字节密钥');
     }
-    console.warn('[security] DM_ENCRYPTION_KEY is unset; using the Jchat development fallback. Do not use this key in production.');
+    console.warn('[安全] 未设置 DM_ENCRYPTION_KEY，正在使用 Jchat 开发回退密钥。请勿在生产环境使用该密钥。');
     return crypto.createHash('sha256').update(DEVELOPMENT_FALLBACK, 'utf8').digest();
 }
 

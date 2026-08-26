@@ -68,7 +68,7 @@ function registerSocketHandlers(io, ctx) {
         socket.on('joinChannel', (channel) => {
             const uid = getAuthenticatedUserId();
             if (!Number.isInteger(uid) || !isValidChannel(channel) || !canAccessChannel(channel, uid)) {
-                socket.emit('channelAccessDenied', { channel, error: 'You do not have access to this channel' });
+                socket.emit('channelAccessDenied', { channel, error: '你无权访问该频道' });
                 return;
             }
             socket.leaveAll();
@@ -83,7 +83,7 @@ function registerSocketHandlers(io, ctx) {
             const userId = getAuthenticatedUserId();
             const peerUserId = data && (data.peerUserId != null) ? parseInt(data.peerUserId) : null;
             if (!userId) {
-                socket.emit('privateMessageError', { error: 'Authentication required', code: 'not_authenticated' });
+                socket.emit('privateMessageError', { error: '需要登录', code: 'not_authenticated' });
                 return;
             }
             if (!peerUserId || userId === peerUserId) return;
@@ -102,11 +102,11 @@ function registerSocketHandlers(io, ctx) {
 
             const user = db.getUserById(userId);
             if (!user) {
-                socket.emit('channelAccessDenied', { channel, error: 'Authentication required' });
+                socket.emit('channelAccessDenied', { channel, error: '需要登录' });
                 return;
             }
             if (!isValidChannel(channel) || !canAccessChannel(channel, userId)) {
-                socket.emit('channelAccessDenied', { channel, error: 'You do not have access to this channel' });
+                socket.emit('channelAccessDenied', { channel, error: '你无权访问该频道' });
                 return;
             }
             if (user.banned) {
@@ -222,7 +222,7 @@ function registerSocketHandlers(io, ctx) {
             const fromId = getAuthenticatedUserId();
             const toId = parseInt(toUserId);
             if (!fromId) {
-                socket.emit('privateMessageError', { error: 'Authentication required', code: 'not_authenticated' });
+                socket.emit('privateMessageError', { error: '需要登录', code: 'not_authenticated' });
                 return;
             }
             if (!toId) return;

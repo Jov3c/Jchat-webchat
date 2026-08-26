@@ -55,7 +55,7 @@ function validateDeactivationReason(reason) {
  */
 function validateMediaUrl(url) {
     if (url == null || url === '') return { ok: true, value: null };
-    if (typeof url !== 'string') return { ok: false, error: 'Invalid media URL' };
+    if (typeof url !== 'string') return { ok: false, error: '无效的媒体地址' };
     const trimmed = url.trim();
     if (!trimmed) return { ok: true, value: null };
     if (trimmed.startsWith('uploads/')) return { ok: true, value: trimmed };
@@ -63,7 +63,7 @@ function validateMediaUrl(url) {
         const parsed = new URL(trimmed);
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return { ok: true, value: trimmed };
     } catch { /* 解析失败走拒绝 */ }
-    return { ok: false, error: 'Invalid media URL' };
+    return { ok: false, error: '无效的媒体地址' };
 }
 
 module.exports = {

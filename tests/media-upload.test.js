@@ -80,7 +80,7 @@ test('media upload: videos and generic files allowed, dangerous types rejected',
     // 2. 危险类型被拒绝：html / exe（防 XSS 与可执行文件）
     const html = await upload('file', new Blob(['<script>alert(1)</script>'], { type: 'text/html' }), 'evil.html', '/api/upload/file');
     assert.equal(html.res.status, 400);
-    assert.match(String(html.body.error || ''), /Unsupported file type/);
+    assert.match(String(html.body.error || ''), /不支持的文件类型/);
 
     const exe = await upload('file', new Blob(['MZ\x90\x00'], { type: 'application/x-msdownload' }), 'virus.exe', '/api/upload/file');
     assert.equal(exe.res.status, 400);

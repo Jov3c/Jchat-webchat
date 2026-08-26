@@ -89,7 +89,7 @@ function createRateLimiter(envName, fallbackMax) {
         }
         if (entry.count >= max) {
             res.set('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
-            return res.status(429).json({ error: 'Too many requests, please try again later' });
+            return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
         }
         entry.count += 1;
         next();
@@ -117,7 +117,7 @@ const presence = new PresenceRegistry();
 const DEFAULT_JWT_SECRET = 'your-secret-key-change-in-production';
 const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 if (process.env.NODE_ENV === 'production' && (JWT_SECRET === DEFAULT_JWT_SECRET || JWT_SECRET.length < 32)) {
-    throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
+    throw new Error('生产环境必须配置 JWT_SECRET，且至少 32 个字符');
 }
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
 const CHANNELS = ['公共频道'];
@@ -159,7 +159,7 @@ function loadAdminCredentials() {
     if (fs.existsSync(ADMIN_CREDENTIALS_FILE)) {
         const parsed = JSON.parse(fs.readFileSync(ADMIN_CREDENTIALS_FILE, 'utf8'));
         const loadedUsername = typeof parsed.username === 'string' ? parsed.username.trim() : '';
-        if (!loadedUsername) throw new Error('Admin credentials file has no valid username');
+        if (!loadedUsername) throw new Error('管理员凭据文件没有有效的用户名');
         if (typeof parsed.passwordHash === 'string' && BCRYPT_HASH_PREFIX.test(parsed.passwordHash)) {
             return { username: loadedUsername, passwordHash: parsed.passwordHash };
         }
@@ -168,10 +168,10 @@ function loadAdminCredentials() {
             writeAdminCredentials(migrated);
             return migrated;
         }
-        throw new Error('Admin credentials file has no valid password hash');
+        throw new Error('管理员凭据文件没有有效的密码哈希');
     }
     if (process.env.NODE_ENV === 'production' && !isStrongAdminPassword(password)) {
-        throw new Error('ADMIN_PASSWORD must be at least 12 characters when initializing admin credentials in production');
+        throw new Error('生产环境初始化管理员凭据时，ADMIN_PASSWORD 必须至少 12 个字符');
     }
     const initial = { username, passwordHash: bcrypt.hashSync(password, 12) };
     writeAdminCredentials(initial);
@@ -227,7 +227,7 @@ app.use((req, res, next) => {
 });
 app.use((req, res, next) => {
     if (req.headers.origin && !isAllowedOrigin(req.headers.origin)) {
-        return res.status(403).json({ error: 'Origin is not allowed' });
+        return res.status(403).json({ error: '请求来源不被允许' });
     }
     next();
 });
@@ -240,7 +240,7 @@ app.use(express.urlencoded({
 }));
 app.use((error, req, res, next) => {
     if (error?.type === 'entity.too.large' || error?.status === 413) {
-        return res.status(413).json({ error: 'Request body too large' });
+        return res.status(413).json({ error: '请求体过大' });
     }
     next(error);
 });
@@ -370,7 +370,7 @@ function uploadFileFilter(req, file, cb) {
     const permittedMimeTypes = allowedTypes.get(extension);
     const mimeType = String(file.mimetype || '').toLowerCase().split(';', 1)[0].trim();
     if (!permittedMimeTypes || !permittedMimeTypes.includes(mimeType)) {
-        const error = new Error('Unsupported file type');
+        const error = new Error('不支持的文件类型');
         error.code = 'INVALID_FILE_TYPE';
         return cb(error);
     }
@@ -388,13 +388,13 @@ function makeSecureSingleUpload(uploadInstance, sizeLabel) {
             if (!error) return next();
             cleanupUploadedFiles(req);
             if (error.code === 'LIMIT_FILE_SIZE') {
-                return res.status(413).json({ error: `File size exceeds limit (${sizeLabel})` });
+                return res.status(413).json({ error: `文件大小超过限制（${sizeLabel}）` });
             }
             if (error instanceof multer.MulterError || error.code === 'INVALID_FILE_TYPE') {
-                return res.status(400).json({ error: error.code === 'INVALID_FILE_TYPE' ? 'Unsupported file type' : 'Invalid upload payload' });
+                return res.status(400).json({ error: error.code === 'INVALID_FILE_TYPE' ? '不支持的文件类型' : '无效的上传数据' });
             }
             console.error('Upload rejected:', error);
-            return res.status(400).json({ error: 'Upload failed' });
+            return res.status(400).json({ error: '上传失败' });
         });
     };
 }
