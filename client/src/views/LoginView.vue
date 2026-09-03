@@ -7,6 +7,7 @@
       <PasswordInput v-model="password" placeholder="密码" autocomplete="current-password" />
       <p v-if="error" class="error">{{ error }}</p>
       <button class="primary" type="submit" :disabled="loading">登录</button>
+      <router-link to="/reset-password">忘记密码？</router-link>
       <router-link to="/register">没有账号？注册</router-link>
     </form>
   </div>
