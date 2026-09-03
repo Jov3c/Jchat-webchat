@@ -39,6 +39,18 @@
         <p v-if="profileMsg" class="ok">{{ profileMsg }}</p>
         <button class="primary" :disabled="saving" @click="saveProfile">保存</button>
       </section>
+
+      <section class="card">
+        <h2>通知设置</h2>
+        <label class="toggle-row">
+          <span>桌面通知</span>
+          <button type="button" class="switch" :class="{ on: notifyEnabled }" @click="toggleNotify" aria-label="桌面通知开关"><span class="knob"></span></button>
+        </label>
+        <label class="toggle-row">
+          <span>提示音</span>
+          <button type="button" class="switch" :class="{ on: soundEnabled }" @click="toggleSound" aria-label="提示音开关"><span class="knob"></span></button>
+        </label>
+      </section>
     </div>
   </div>
 </template>
@@ -48,6 +60,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { http } from '../api/http.js';
 import { getUser, updateUser, getToken } from '../stores/auth.js';
+import { isNotifyEnabled, setNotifyEnabled, isSoundEnabled, setSoundEnabled } from '../utils/notify.js';
 import Avatar from '../components/Avatar.vue';
 
 const router = useRouter();
@@ -57,6 +70,11 @@ const me = ref({ ...(getUser() || {}) });
 const profileError = ref('');
 const profileMsg = ref('');
 const saving = ref(false);
+
+const notifyEnabled = ref(isNotifyEnabled());
+const soundEnabled = ref(isSoundEnabled());
+function toggleNotify() { notifyEnabled.value = !notifyEnabled.value; setNotifyEnabled(notifyEnabled.value); }
+function toggleSound() { soundEnabled.value = !soundEnabled.value; setSoundEnabled(soundEnabled.value); }
 
 onMounted(() => {
   loadProfile();
@@ -212,6 +230,17 @@ async function onAvatarChange(e) {
 .error { color: var(--red); font-size: 13px; }
 .ok { color: var(--green); font-size: 13px; }
 .empty { color: var(--muted); font-size: 13px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+.switch {
+  width: 42px; height: 24px; border-radius: 999px; border: 0;
+  background: var(--border); cursor: pointer; position: relative; transition: background 0.15s ease;
+}
+.switch.on { background: var(--accent); }
+.switch .knob {
+  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 999px;
+  background: #fff; transition: left 0.15s ease;
+}
+.switch.on .knob { left: 21px; }
 .add-form { display: flex; gap: 8px; }
 .add-form input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
 .request {
