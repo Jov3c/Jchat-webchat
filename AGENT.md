@@ -8,7 +8,7 @@ Jchat-JoyChat 是一个实时聊天应用：公共/私有频道 + 好友私聊�
 
 - 单 Node.js 进程同时提供：网页、HTTP API、Socket.IO 实时通信、SQLite 数据库
 - 前端为 Vue 3 单页应用，构建产物 `client/dist/` 由同一服务托管
-- 当前版本：**v2.4.0**；要求 **Node.js 24 LTS**（`node:sqlite`、`--env-file` 均依赖 Node ≥20/24）
+- 当前版本：**v2.5.0**；要求 **Node.js 24 LTS**（`node:sqlite`、`--env-file` 均依赖 Node ≥20/24）
 
 ## 技术栈（使用语言）
 
@@ -25,9 +25,9 @@ Jchat-JoyChat 是一个实时聊天应用：公共/私有频道 + 好友私聊�
 │   └── src/
 │       ├── api/         # http.js（fetch 封装）、socket.js（Socket.IO 客户端）
 │       ├── components/  # Avatar、MessageBubble、StickerPicker、MusicCard、Toast、ImageLightbox、layout/（Composer、MessageList…）
-│       ├── stores/      # reactive stores：auth、channels、e2ee、friends、keys、presence、session、stickers、unread、userCard、toast、imageViewer
-│       ├── utils/       # bilibili.js（B站→播放器）、music.js（网易云→音乐卡片/外链播放器）
-│       ├── views/       # LoginView、RegisterView、ChatView、ProfileView、AdminView
+│       ├── stores/      # reactive stores：auth、channels、e2ee、friends、keys、navigation、presence、session、stickers、unread、userCard、toast、imageViewer
+│       ├── utils/       # bilibili.js（B站→播放器）、music.js（网易云→音乐卡片/外链播放器）、notify.js（桌面通知+提示音）
+│       ├── views/       # LoginView、RegisterView、ResetPasswordView、ChatView、ProfileView、AdminView
 │       └── styles/      # tokens.css、base.css
 ├── server/              # 后端模块
 │   ├── db.js            # SQLite 全部数据访问（node:sqlite，同步 API）
@@ -103,10 +103,10 @@ npm run reset-data              # 清空数据并恢复本地默认管理员 adm
 - 不要引入 TypeScript、不要在运行时引入新框架；保持纯 JS、轻依赖。
 - 数据库字段/表结构改动要同步 `server/db.js` 建表逻辑与相关测试；迁移策略请先和用户确认。
 
-## 当前状态（2026-08-26）
+## 当前状态（2026-09-03）
 
 - 里程碑 M1（前端重构）、M2（E2EE）、M3（协作功能）、M4（后端整理）**全部完成**。
-- **v2.4.0 新增**：图片点击放大、视频内嵌播放（≤100MB）、通用文件发送（7 天过期）、网易云音乐卡片 + 外链可播放播放器、表情包右键收藏、Toast 提示、E2EE 私钥 sessionStorage 缓存（刷新不丢密钥）、手机端布局优化。
-- **文件传输走服务器中转**（公共/私聊一致，7 天过期），已移除点对点（WebRTC）传输。
-- 质量：后端 53 测试 + 前端 52 测试全绿；CI 全绿；`npm audit` 0 漏洞。
-- 最近工作：v2.4.0 媒体/文件/音乐卡片功能、部署脚本与 HTTPS 支持（见 `deploy/`）。
+- **v2.5.0 新增**：消息历史分页（最近 50 条 + 滚动加载更早）、桌面通知与提示音（资料页可开关）、恢复码与忘记密码（恢复码=第二把钥匙加密私钥副本存服务器，忘密码可重置且私聊历史不丢）。
+- 加密要点：恢复码由 `client/src/stores/e2ee.js` 的 `generateRecoveryCode`（20 位去混淆字符集）生成；服务器只存 `recovery_key` 密文与 bcrypt 哈希（`users.recovery_key`/`recovery_code_hash`），不经手明文；重置密码会作废旧会话。相关接口：`PUT /api/profile/recovery`、`POST /api/recovery/verify`、`POST /api/reset-password`、`POST /api/profile/verify-password`。历史消息接口支持 `limit`/`before_id` 分页并返回 `has_more`。
+- 质量：后端 65 测试 + 前端 67 测试全绿；CI 全绿；`npm audit` 0 漏洞。
+- 最近工作：v2.5.0 消息分页、桌面通知、恢复码/忘记密码。
