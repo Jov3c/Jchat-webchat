@@ -37,6 +37,12 @@ module.exports = function registerRoutes(app, ctx) {
         isStrongAdminPassword, writeAdminCredentials, ensureAdministratorUser, saveAdminCredentials
     } = ctx;
 
+function parseLimit(raw, fallback = 50) {
+    const n = Number.parseInt(raw, 10);
+    if (!Number.isInteger(n) || n < 1) return fallback;
+    return Math.min(n, 200);
+}
+
 app.get('/api/registration-status', (req, res) => {
     res.json({ enabled: REGISTRATION_ENABLED });
 });
@@ -1006,7 +1012,14 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
         messages = messages.filter(msg => !msg.is_blocked);
     }
 
-    const messagesWithUserInfo = messages.map(msg => {
+    const limit = parseLimit(req.query.limit);
+    const beforeId = Number.parseInt(req.query.before_id, 10);
+    let pageMessages = messages;
+    if (Number.isInteger(beforeId)) pageMessages = pageMessages.filter(msg => msg.id < beforeId);
+    const page = pageMessages.slice(-limit);
+    const hasMore = pageMessages.length > limit;
+
+    const messagesWithUserInfo = page.map(msg => {
         const user = db.getUserById(msg.user_id);
 
         const messageData = {
@@ -1036,7 +1049,7 @@ app.get('/api/messages/:channel', authenticateUser, requireAuthenticatedUser, (r
         return messageData;
     });
 
-    res.json(messagesWithUserInfo);
+    res.json({ messages: messagesWithUserInfo, has_more: hasMore });
 });
 
 app.post('/api/messages/:messageId/reaction', authenticateUser, requireAuthenticatedUser, (req, res) => {
@@ -1203,7 +1216,14 @@ app.get('/api/dm/:peerUserId/messages', authenticateUser, requireUser, (req, res
         const t = new Date(lastClearAt).getTime();
         raw = raw.filter(m => new Date(m.created_at).getTime() > t);
     }
-    const messages = raw.map(m => {
+    const limit = parseLimit(req.query.limit);
+    const beforeId = Number.parseInt(req.query.before_id, 10);
+    let pageMessages = raw;
+    if (Number.isInteger(beforeId)) pageMessages = pageMessages.filter(m => m.id < beforeId);
+    const page = pageMessages.slice(-limit);
+    const hasMore = pageMessages.length > limit;
+
+    const messages = page.map(m => {
         const sender = db.getUserById(m.from_user_id);
         const out = {
             ...m,
@@ -1222,7 +1242,7 @@ app.get('/api/dm/:peerUserId/messages', authenticateUser, requireUser, (req, res
         }
         return out;
     });
-    res.json({ messages });
+    res.json({ messages, has_more: hasMore });
 });
 
 app.get('/api/messages/:channel/search', authenticateUser, requireAuthenticatedUser, (req, res) => {

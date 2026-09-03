@@ -446,7 +446,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal((await sendDenied).channel, privateChannel);
 
         const messages = await requestJson(`${baseUrl}/api/messages/${privatePath}`, authOptions(owner.token));
-        assert.equal(messages.body.some(message => message.content === 'forged socket write'), false);
+        assert.equal(messages.body.messages.some(message => message.content === 'forged socket write'), false);
     });
 
     await t.test('a verified non-member is denied join and send even with an owner id in event data', async () => {
@@ -470,7 +470,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal((await sendDenied).channel, privateChannel);
 
         const messages = await requestJson(`${baseUrl}/api/messages/${privatePath}`, authOptions(owner.token));
-        assert.equal(messages.body.some(message => message.content === 'outsider token write'), false);
+        assert.equal(messages.body.messages.some(message => message.content === 'outsider token write'), false);
     });
 
     await t.test('an unauthenticated socket cannot recall another user private-channel message', async () => {
@@ -498,7 +498,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal((await denied).reason, 'not_authenticated');
 
         const messages = await requestJson(`${baseUrl}/api/messages/${privatePath}`, authOptions(owner.token));
-        assert.equal(messages.body.find(item => item.id === message.id).is_recalled, false);
+        assert.equal(messages.body.messages.find(item => item.id === message.id).is_recalled, false);
     });
 
     await t.test('a removed private-channel author cannot recall their own message', async () => {
@@ -538,7 +538,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal((await denied).reason, 'channel_access_denied');
 
         const messages = await requestJson(`${baseUrl}/api/messages/${channelPath}`, authOptions(owner.token));
-        assert.equal(messages.body.find(item => item.id === message.id).is_recalled, false);
+        assert.equal(messages.body.messages.find(item => item.id === message.id).is_recalled, false);
     });
 
     await t.test('only the verified author who remains a member can recall a private-channel message', async () => {
@@ -565,7 +565,7 @@ test('private channel membership is persisted and enforced across HTTP and Socke
         assert.equal((await recalled).messageId, message.id);
 
         const messages = await requestJson(`${baseUrl}/api/messages/${privatePath}`, authOptions(owner.token));
-        assert.equal(messages.body.find(item => item.id === message.id).is_recalled, true);
+        assert.equal(messages.body.messages.find(item => item.id === message.id).is_recalled, true);
     });
 
     await t.test('owner can remove a member, after which the channel disappears and access is forbidden', async () => {
