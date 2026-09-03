@@ -58,6 +58,7 @@ import MemberList from '../components/layout/MemberList.vue';
 import { connectSocket, authenticate } from '../api/socket.js';
 import { applyPresenceUpdate } from '../stores/presence.js';
 import { useChannels, fetchChannels } from '../stores/channels.js';
+import { useNavigation } from '../stores/navigation.js';
 import ChannelMenu from '../components/ChannelMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 
@@ -69,6 +70,7 @@ const railRef = ref(null);
 const channelMenuOpen = ref(false);
 const searchOpen = ref(false);
 const channelsState = useChannels();
+const navigation = useNavigation();
 
 const title = computed(() => {
   if (activeChannel.value) {
@@ -100,6 +102,14 @@ watch([activeChannel, activePeerId], ([channel, peerId]) => {
   const socket = connectSocket();
   if (channel != null) socket.emit('joinChannel', channel);
   if (peerId != null) socket.emit('joinDmConversation', { peerUserId: peerId });
+});
+
+// 桌面通知点击等跨组件请求：跳转到对应会话
+watch(() => navigation.pending, (target) => {
+  if (!target) return;
+  if (target.channel) openChannel(target.channel);
+  else if (target.peerId != null) openDm(target.peerId);
+  navigation.pending = null;
 });
 </script>
 

@@ -108,6 +108,8 @@ import { useRouter } from 'vue-router';
 import { http } from '../../api/http.js';
 import { getUser, updateUser, clearLogin } from '../../stores/auth.js';
 import { clearKeys } from '../../stores/keys.js';
+import { notify } from '../../utils/notify.js';
+import { requestOpen } from '../../stores/navigation.js';
 import { setFriends } from '../../stores/friends.js';
 import { getLivePresence } from '../../stores/presence.js';
 import { openUserCard } from '../../stores/userCard.js';
@@ -300,11 +302,21 @@ onMounted(async () => {
   socket.on('privateMessageReceived', (m) => {
     if (m.to_user_id === me.value.id && m.from_user_id !== props.activePeerId) {
       incrementUnread(keyForDm(m.from_user_id), m.id);
+      notify({
+        title: m.nickname || m.username || '新私聊消息',
+        body: '发来了一条私聊消息',
+        onClick: () => requestOpen({ peerId: m.from_user_id })
+      });
     }
   });
   socket.on('messageReceived', (m) => {
     if (m.channel !== props.activeChannel) {
       incrementUnread(keyForChannel(m.channel), m.id);
+      notify({
+        title: '#' + (m.channel || '频道'),
+        body: ((m.nickname || m.username || '') + '：' + (m.content || '')).slice(0, 60),
+        onClick: () => requestOpen({ channel: m.channel })
+      });
     }
   });
   socket.on('channelInvited', () => {
