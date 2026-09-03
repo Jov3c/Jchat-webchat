@@ -193,6 +193,12 @@ if (!userColumns.some(column => column.name === 'encrypted_private_key')) {
 if (!userColumns.some(column => column.name === 'salt')) {
     sqlite.exec('ALTER TABLE users ADD COLUMN salt TEXT');
 }
+if (!userColumns.some(column => column.name === 'recovery_key')) {
+    sqlite.exec('ALTER TABLE users ADD COLUMN recovery_key TEXT');
+}
+if (!userColumns.some(column => column.name === 'recovery_code_hash')) {
+    sqlite.exec('ALTER TABLE users ADD COLUMN recovery_code_hash TEXT');
+}
 
 const messageColumns = sqlite.prepare('PRAGMA table_info(messages)').all();
 if (!messageColumns.some(column => column.name === 'file')) {
@@ -558,7 +564,7 @@ function insertUser(userData) {
 function updateUser(id, userData) {
     const userId = int(id);
     if (!getUserById(userId)) return null;
-    const allowed = ['username', 'password', 'email', 'nickname', 'avatar', 'bio', 'gender', 'banned', 'allow_add_friend_from_profile', 'presence_status', 'public_key', 'encrypted_private_key', 'salt'];
+    const allowed = ['username', 'password', 'email', 'nickname', 'avatar', 'bio', 'gender', 'banned', 'allow_add_friend_from_profile', 'presence_status', 'public_key', 'encrypted_private_key', 'salt', 'recovery_key', 'recovery_code_hash'];
     const entries = Object.entries(userData).filter(([key]) => allowed.includes(key));
     if (!entries.length) return getUserById(userId);
     const values = entries.map(([, value]) => value === null ? null : value === true ? 1 : value === false ? 0 : value);
