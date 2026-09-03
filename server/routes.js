@@ -121,6 +121,40 @@ app.put('/api/profile/keys', authenticateUser, requireUser, (req, res) => {
     res.json({ success: true });
 });
 
+// 上传「恢复码加密的私钥副本」；重生成即覆盖，旧码作废。服务器只存恢复码的 bcrypt 哈希。
+app.put('/api/profile/recovery', authenticateUser, requireUser, async (req, res) => {
+    const { recovery_key, recovery_code } = req.body || {};
+    if (typeof recovery_key !== 'string' || recovery_key.length < 20 || recovery_key.length > 4000) {
+        return res.status(400).json({ error: '恢复密钥无效' });
+    }
+    if (typeof recovery_code !== 'string' || !/^[A-Z2-9]{16,64}$/.test(recovery_code)) {
+        return res.status(400).json({ error: '恢复码格式无效' });
+    }
+    try {
+        const recovery_code_hash = await bcrypt.hash(recovery_code, 10);
+        db.updateUser(req.userId, { recovery_key, recovery_code_hash });
+        logger.auditLog('recovery_key_updated', req.userId, {});
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: '服务器错误' });
+    }
+});
+
+// 资料页生成恢复码前验证当前密码（不建立新会话、不顶号）
+app.post('/api/profile/verify-password', authenticateUser, requireUser, async (req, res) => {
+    const { password } = req.body || {};
+    if (typeof password !== 'string' || !password) return res.status(400).json({ error: '请填写当前密码' });
+    const user = db.getUserById(req.userId);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    try {
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) return res.status(401).json({ error: '当前密码错误' });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: '服务器错误' });
+    }
+});
+
 app.post('/api/channel/:channel/leave', authenticateUser, requireAuthenticatedUser, (req, res) => {
     const { channel } = req.params;
     if (!isPrivateChannel(channel)) return res.status(400).json({ error: '公共频道无法退出' });
@@ -245,6 +279,53 @@ app.post('/api/login', loginRateLimiter, async (req, res) => {
         res.status(500).json({ error: '服务器错误' });
     }
 });
+// 忘记密码第一步：校验恢复码，通过则交还「恢复码加密的私钥副本」供客户端解开
+app.post('/api/recovery/verify', loginRateLimiter, async (req, res) => {
+    const { username, recovery_code } = req.body || {};
+    if (!username || typeof recovery_code !== 'string' || !recovery_code) {
+        return res.status(400).json({ error: '请填写账号和恢复码' });
+    }
+    const user = db.getUserByUsername(String(username).trim());
+    if (!user || !user.recovery_key || !user.recovery_code_hash) {
+        return res.status(403).json({ error: '该账号未设置恢复码' });
+    }
+    try {
+        const match = await bcrypt.compare(recovery_code, user.recovery_code_hash);
+        if (!match) return res.status(403).json({ error: '账号或恢复码错误' });
+        res.json({ recovery_key: user.recovery_key });
+    } catch (error) {
+        res.status(500).json({ error: '服务器错误' });
+    }
+});
+
+// 忘记密码第二步：恢复码校验通过后，换新密码并作废该用户全部会话
+app.post('/api/reset-password', loginRateLimiter, async (req, res) => {
+    const { username, recovery_code, new_password, new_salt, new_encrypted_private_key } = req.body || {};
+    if (!username || typeof recovery_code !== 'string' || !recovery_code || !new_password) {
+        return res.status(400).json({ error: '请填写账号、恢复码和新密码' });
+    }
+    if (typeof new_salt !== 'string' || !new_salt || typeof new_encrypted_private_key !== 'string' || !new_encrypted_private_key) {
+        return res.status(400).json({ error: '密钥数据无效' });
+    }
+    const passwordCheck = validatePassword(new_password);
+    if (!passwordCheck.ok) return res.status(400).json({ error: passwordCheck.error });
+    const user = db.getUserByUsername(String(username).trim());
+    if (!user || !user.recovery_key || !user.recovery_code_hash) {
+        return res.status(403).json({ error: '该账号未设置恢复码' });
+    }
+    try {
+        const match = await bcrypt.compare(recovery_code, user.recovery_code_hash);
+        if (!match) return res.status(403).json({ error: '账号或恢复码错误' });
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+        db.updateUser(user.id, { password: hashedPassword, salt: new_salt, encrypted_private_key: new_encrypted_private_key });
+        db.setUserSession(user.id, null);
+        logger.auditLog('password_reset', user.id, { username: user.username });
+        res.json({ success: true, message: '密码已重置' });
+    } catch (error) {
+        res.status(500).json({ error: '服务器错误' });
+    }
+});
+
 app.post('/api/logout', authenticateUser, requireAuthenticatedUser, (req, res) => {
     db.clearUserSession(req.userId, req.userSessionId);
     res.json({ success: true });
@@ -585,7 +666,8 @@ app.get('/api/profile/:userId', authenticateUser, requireAuthenticatedUser, (req
         email: user.email,
         created_at: user.created_at,
         allow_add_friend_from_profile: user.allow_add_friend_from_profile === true || user.allow_add_friend_from_profile === 'true',
-        effective_status: presence.effectiveStatus(req.userId, user)
+        effective_status: presence.effectiveStatus(req.userId, user),
+        has_recovery: !!user.recovery_key
     };
     if (Number(req.userId) === Number(user.id)) userProfile.presence_status = user.presence_status || 'online';
     res.json(userProfile);
