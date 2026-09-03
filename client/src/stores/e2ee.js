@@ -106,4 +106,27 @@ export async function decryptMessage(b64, messageKey) {
   return aesGcmDecrypt(messageKey, b64);
 }
 
+// —— 恢复码：高熵随机串直接派生密钥，无需 PBKDF2 ——
+const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+export function generateRecoveryCode(length = 20) {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let code = '';
+  for (let i = 0; i < bytes.length; i++) code += RECOVERY_ALPHABET[bytes[i] % RECOVERY_ALPHABET.length];
+  return code;
+}
+
+export async function recoveryCodeToKey(code) {
+  const digest = await crypto.subtle.digest('SHA-256', encoder.encode(code));
+  return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+export async function wrapPrivateKeyWithRecovery(privateKey, code) {
+  return wrapPrivateKey(privateKey, await recoveryCodeToKey(code));
+}
+
+export async function unwrapPrivateKeyWithRecovery(blob, code) {
+  return unwrapPrivateKey(blob, await recoveryCodeToKey(code));
+}
+
 export { hasCrypto, bufToB64, b64ToBuf };

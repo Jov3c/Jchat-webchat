@@ -2,7 +2,8 @@ import { reactive } from 'vue';
 import { http } from '../api/http.js';
 import {
   deriveKek, generateKeyPair, exportPublicKey, wrapPrivateKey, unwrapPrivateKey,
-  deriveMessageKey, importPublicKey, bufToB64, b64ToBuf, randomSalt, hasCrypto
+  deriveMessageKey, importPublicKey, bufToB64, b64ToBuf, randomSalt, hasCrypto,
+  generateRecoveryCode, wrapPrivateKeyWithRecovery
 } from './e2ee.js';
 
 // 当前用户端到端加密密钥状态
@@ -110,6 +111,14 @@ export async function getOrDeriveMessageKey(peerId, peerPublicKeyJwk) {
   const key = await deriveMessageKey(state.myPrivateKey, peerPublicKey);
   state.messageKeys[peerId] = key;
   return key;
+}
+
+// 生成一份「恢复码加密」的私钥副本（服务器只存密文与恢复码哈希）
+export async function generateRecoveryKey() {
+  if (!state.ready || !state.myPrivateKey) return null;
+  const code = generateRecoveryCode();
+  const recovery_key = await wrapPrivateKeyWithRecovery(state.myPrivateKey, code);
+  return { code, recovery_key };
 }
 
 // 改密码时用新密码重锁私钥，返回新的盐与加密私钥
