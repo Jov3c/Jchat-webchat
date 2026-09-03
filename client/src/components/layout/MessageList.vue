@@ -1,5 +1,6 @@
 <template>
   <div class="messages" ref="scrollEl" @scroll="onScroll">
+    <div v-if="loadingOlder" class="loading-older">加载更早的消息…</div>
     <div v-if="!messages.length" class="empty">暂无消息</div>
     <template v-for="m in displayMessages" :key="m.id">
       <div v-if="m.showDay" class="day">{{ m.dayLabel }}</div>
@@ -38,6 +39,9 @@ const emit = defineEmits(['reply']);
 
 const messages = ref([]);
 const currentUserId = getUser()?.id;
+const hasMore = ref(true);
+const loadingOlder = ref(false);
+const oldestId = ref(null);
 
 const scrollEl = ref(null);
 const atBottom = ref(true);
@@ -88,6 +92,8 @@ function scrollToBottom(smooth = true) {
 function onScroll() {
   atBottom.value = isAtBottom();
   if (atBottom.value) showJump.value = false;
+  const el = scrollEl.value;
+  if (el && el.scrollTop < 80) loadOlder();
 }
 
 function handleNewMessage(m) {
@@ -151,21 +157,56 @@ async function load() {
   messages.value = [];
   showJump.value = false;
   jumpUnreadId.value = null;
+  hasMore.value = true;
+  loadingOlder.value = false;
+  oldestId.value = null;
   const key = props.peerId != null ? keyForDm(props.peerId) : keyForChannel(props.channel);
   const firstUnread = getFirstUnreadId(key);
+  let data = null;
   if (props.peerId != null) {
-    const data = await http.get(`/api/dm/${props.peerId}/messages`);
-    const raw = data.messages || data || [];
+    data = await http.get(`/api/dm/${props.peerId}/messages?limit=50`);
+    const raw = data.messages || [];
     messages.value = await Promise.all(raw.map(decryptDmContent));
   } else if (props.channel) {
-    const data = await http.get(`/api/messages/${props.channel}`);
+    data = await http.get(`/api/messages/${props.channel}?limit=50`);
     messages.value = data.messages || data || [];
   }
+  hasMore.value = data ? data.has_more !== false : true;
+  oldestId.value = messages.value.length ? messages.value[0].id : null;
   clearUnread(key);
   if (firstUnread && messages.value.some(m => m.id === firstUnread)) {
     jumpUnreadId.value = firstUnread;
   }
   nextTick(() => { scrollToBottom(false); atBottom.value = true; });
+}
+
+// 滚动到顶部时加载更早的一批，插到最前并补偿滚动位置
+async function loadOlder() {
+  if (loadingOlder.value || !hasMore.value || !oldestId.value) return;
+  loadingOlder.value = true;
+  const before = oldestId.value;
+  const el = scrollEl.value;
+  const prevHeight = el ? el.scrollHeight : 0;
+  try {
+    if (props.peerId != null) {
+      const data = await http.get(`/api/dm/${props.peerId}/messages?limit=50&before_id=${before}`);
+      const older = await Promise.all((data.messages || []).map(decryptDmContent));
+      if (!older.length) { hasMore.value = false; return; }
+      messages.value = [...older, ...messages.value];
+      oldestId.value = older[0].id;
+      hasMore.value = data.has_more !== false;
+    } else if (props.channel) {
+      const data = await http.get(`/api/messages/${props.channel}?limit=50&before_id=${before}`);
+      const older = data.messages || [];
+      if (!older.length) { hasMore.value = false; return; }
+      messages.value = [...older, ...messages.value];
+      oldestId.value = older[0].id;
+      hasMore.value = data.has_more !== false;
+    }
+    nextTick(() => { if (el) el.scrollTop += (el.scrollHeight - prevHeight); });
+  } finally {
+    loadingOlder.value = false;
+  }
 }
 
 function scrollToUnread() {
@@ -224,6 +265,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .messages { flex: 1; overflow-y: auto; padding: 18px 22px 8px; display: flex; flex-direction: column; position: relative; }
 .empty { color: var(--muted); text-align: center; margin-top: 40px; font-size: 14px; }
+.loading-older { flex: none; align-self: center; margin: 4px 0 10px; color: var(--faint); font-size: 12px; }
 .msg-row { flex: none; }
 .day {
   display: flex; align-items: center; gap: 12px;
