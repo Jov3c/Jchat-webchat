@@ -51,6 +51,28 @@
           <button type="button" class="switch" :class="{ on: soundEnabled }" @click="toggleSound" aria-label="提示音开关"><span class="knob"></span></button>
         </label>
       </section>
+
+      <section class="card">
+        <h2>恢复码</h2>
+        <p class="muted">忘记密码时，恢复码是找回私聊的唯一钥匙，请妥善保管。</p>
+        <p class="muted">{{ recoveryConfigured ? '当前账号已设置恢复码。' : '当前账号还没有恢复码。' }}</p>
+        <template v-if="!showRecoveryForm">
+          <button class="ghost" @click="openRecoveryForm">{{ recoveryConfigured ? '重新生成恢复码' : '生成恢复码' }}</button>
+        </template>
+        <template v-else>
+          <PasswordInput v-model="recoveryPassword" placeholder="输入当前密码确认" autocomplete="current-password" />
+          <div class="add-form">
+            <button class="primary sm" :disabled="recoveryBusy" @click="createRecovery">确认生成</button>
+            <button class="ghost" @click="showRecoveryForm = false">取消</button>
+          </div>
+        </template>
+        <p v-if="recoveryError" class="error">{{ recoveryError }}</p>
+        <div v-if="newRecoveryCode" class="recovery-result">
+          <p class="warn">请抄下来妥善保存，此码只显示这一次；重新生成后旧码立即作废。</p>
+          <code class="recovery-code">{{ formatRecovery(newRecoveryCode) }}</code>
+          <button class="ghost" @click="copyRecovery">复制</button>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -61,7 +83,9 @@ import { useRouter } from 'vue-router';
 import { http } from '../api/http.js';
 import { getUser, updateUser, getToken } from '../stores/auth.js';
 import { isNotifyEnabled, setNotifyEnabled, isSoundEnabled, setSoundEnabled } from '../utils/notify.js';
+import { generateRecoveryKey, useKeys } from '../stores/keys.js';
 import Avatar from '../components/Avatar.vue';
+import PasswordInput from '../components/PasswordInput.vue';
 
 const router = useRouter();
 
@@ -76,6 +100,45 @@ const soundEnabled = ref(isSoundEnabled());
 function toggleNotify() { notifyEnabled.value = !notifyEnabled.value; setNotifyEnabled(notifyEnabled.value); }
 function toggleSound() { soundEnabled.value = !soundEnabled.value; setSoundEnabled(soundEnabled.value); }
 
+const showRecoveryForm = ref(false);
+const recoveryPassword = ref('');
+const recoveryBusy = ref(false);
+const recoveryError = ref('');
+const newRecoveryCode = ref('');
+const recoveryConfigured = ref(false);
+
+function openRecoveryForm() {
+  showRecoveryForm.value = true;
+  recoveryPassword.value = '';
+  recoveryError.value = '';
+  newRecoveryCode.value = '';
+}
+function formatRecovery(code) { return code.replace(/(.{4})/g, '$1 ').trim(); }
+function copyRecovery() {
+  try { navigator.clipboard.writeText(newRecoveryCode.value); } catch { /* 忽略 */ }
+}
+async function createRecovery() {
+  recoveryError.value = '';
+  if (!recoveryPassword.value) { recoveryError.value = '请输入当前密码'; return; }
+  recoveryBusy.value = true;
+  try {
+    await http.post('/api/profile/verify-password', { password: recoveryPassword.value });
+    const keys = useKeys();
+    if (!keys.ready) { recoveryError.value = '密钥未就绪，请重新登录后重试'; return; }
+    const recovery = await generateRecoveryKey();
+    if (!recovery) { recoveryError.value = '生成恢复码失败'; return; }
+    await http.put('/api/profile/recovery', { recovery_key: recovery.recovery_key, recovery_code: recovery.code });
+    newRecoveryCode.value = recovery.code;
+    recoveryConfigured.value = true;
+    showRecoveryForm.value = false;
+    recoveryPassword.value = '';
+  } catch (e) {
+    recoveryError.value = e.message || '生成恢复码失败';
+  } finally {
+    recoveryBusy.value = false;
+  }
+}
+
 onMounted(() => {
   loadProfile();
 });
@@ -85,6 +148,7 @@ async function loadProfile() {
   try {
     const data = await http.get(`/api/profile/${me.value.id}`);
     if (data && data.id != null) me.value = { ...me.value, ...data };
+    recoveryConfigured.value = !!data.has_recovery;
   } catch (e) {
     profileError.value = e.message || '加载资料失败';
   }
@@ -230,6 +294,10 @@ async function onAvatarChange(e) {
 .error { color: var(--red); font-size: 13px; }
 .ok { color: var(--green); font-size: 13px; }
 .empty { color: var(--muted); font-size: 13px; }
+.muted { color: var(--muted); font-size: 13px; }
+.warn { color: var(--red); font-size: 13px; line-height: 1.6; }
+.recovery-result { display: flex; flex-direction: column; gap: 10px; }
+.recovery-code { font-family: var(--mono); font-size: 17px; letter-spacing: 1px; padding: 12px; background: var(--bg); border-radius: var(--radius-sm); text-align: center; user-select: all; }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
 .switch {
   width: 42px; height: 24px; border-radius: 999px; border: 0;
