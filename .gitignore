@@ -26,6 +26,9 @@ server/logs/
 # Scratch / temp working files
 _work/
 
+# Superpowers process docs (brainstorming specs, implementation plans) — local only
+docs/superpowers/
+
 # Frontend build output
 client/dist/
 
